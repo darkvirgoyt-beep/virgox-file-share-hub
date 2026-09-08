@@ -166,7 +166,7 @@ function VerifiedMark() {
   return <span className="verified-mark" aria-label="Verified creator"><Check size={10} strokeWidth={3} /></span>;
 }
 
-function VideoCard({ video, onOpen }: { video: VideoItem; onOpen: (video: VideoItem) => void }) {
+function VideoCard({ video, onOpen, onRequireAuth }: { video: VideoItem; onOpen: (video: VideoItem) => void; onRequireAuth: (intent: string, action: () => void) => void }) {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -189,10 +189,10 @@ function VideoCard({ video, onOpen }: { video: VideoItem; onOpen: (video: VideoI
           <button className="icon-button subtle"><MoreHorizontal size={18} /></button>
         </div>
         <div className="video-actions">
-          <button className={`metric-button ${liked ? "active-like" : ""}`} onClick={() => setLiked(!liked)}><Heart size={16} fill={liked ? "currentColor" : "none"} /> {liked ? "18.5K" : video.likes}</button>
-          <button className="metric-button"><MessageCircle size={16} /> {video.comments}</button>
-          <button className={`metric-button compact ${saved ? "active-save" : ""}`} onClick={() => setSaved(!saved)}><Bookmark size={16} fill={saved ? "currentColor" : "none"} /></button>
-          <button className="metric-button compact"><Send size={16} /></button>
+          <button className={`metric-button ${liked ? "active-like" : ""}`} onClick={() => onRequireAuth("like videos", () => setLiked(!liked))}><Heart size={16} fill={liked ? "currentColor" : "none"} /> {liked ? "18.5K" : video.likes}</button>
+          <button className="metric-button" onClick={() => onRequireAuth("comment on videos", () => toast("Comment composer ready for the next interaction pass."))}><MessageCircle size={16} /> {video.comments}</button>
+          <button className={`metric-button compact ${saved ? "active-save" : ""}`} onClick={() => onRequireAuth("save videos", () => setSaved(!saved))}><Bookmark size={16} fill={saved ? "currentColor" : "none"} /></button>
+          <button className="metric-button compact" onClick={() => onRequireAuth("share videos", () => toast("Share link copied."))}><Send size={16} /></button>
         </div>
       </div>
     </article>
@@ -219,10 +219,19 @@ export default function Home() {
   }, [search]);
 
   const toggleFollow = (handle: string) => {
-    setFollowed((current) => current.includes(handle) ? current.filter((item) => item !== handle) : [...current, handle]);
+    requireAuth("follow creators", () => setFollowed((current) => current.includes(handle) ? current.filter((item) => item !== handle) : [...current, handle]));
   };
 
   const sectionTitle = section === "home" ? "Your daily signal" : section === "reels" ? "Reels, tuned to you" : section === "discover" ? "Find your next rabbit hole" : "Places to make something together";
+
+  const requireAuth = (intent: string, action?: () => void) => {
+    if (!isAuthenticated) {
+      toast(`Sign in or create an account to ${intent}.`);
+      startLogin();
+      return;
+    }
+    action?.();
+  };
 
   return (
     <div className="app-shell">
@@ -240,9 +249,9 @@ export default function Home() {
 
         <div className="rail-label rail-label-spaced">Your space</div>
         <nav className="secondary-nav">
-          <button className="nav-item" onClick={() => toast("Saved videos will appear here.")}><Bookmark size={18} /><span>Saved</span></button>
-          <button className="nav-item" onClick={() => toast("File transfers are ready for your next upload.")}><FolderOpen size={18} /><span>My files</span></button>
-          <button className="nav-item" onClick={() => toast("Messages are coming to your workspace soon.")}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
+          <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
+          <button className="nav-item" onClick={() => requireAuth("send and manage files")}><FolderOpen size={18} /><span>My files</span></button>
+          <button className="nav-item" onClick={() => requireAuth("send messages")}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
         </nav>
 
         <div className="rail-spacer" />
@@ -250,7 +259,7 @@ export default function Home() {
           <div className="storage-top"><span><ShieldCheck size={15} /> Secure vault</span><span>68%</span></div>
           <div className="storage-bar"><span /></div>
           <p>6.8 GB of 10 GB used</p>
-          <button onClick={() => toast("Upgrade options are being prepared.")}><Crown size={14} /> Upgrade space</button>
+          <button onClick={() => requireAuth("upgrade your secure space")}><Crown size={14} /> Upgrade space</button>
         </div>
         <div className="rail-footer">
           <button className="user-row" onClick={() => toast("Profile settings coming soon.")}>
@@ -270,7 +279,7 @@ export default function Home() {
           <div className="search-wrap"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search creators, videos, groups..." /><kbd>⌘ K</kbd></div>
           <div className="top-actions">
             <button className="icon-button notification-button" onClick={() => toast("You are all caught up.")}><Bell size={18} /><i /></button>
-            <button className="create-button" onClick={() => setShowUpload(true)}><Plus size={17} /> Create</button>
+            <button className="create-button" onClick={() => requireAuth("create uploads and posts", () => setShowUpload(true))}><Plus size={17} /> Create</button>
             {isAuthenticated ? <button className="top-avatar" onClick={() => logout()} title="Sign out"><Avatar src="https://i.pravatar.cc/100?img=13" size="sm" /></button> : <button className="sign-in-button" onClick={() => startLogin()}>Sign in</button>}
           </div>
         </header>
@@ -278,7 +287,7 @@ export default function Home() {
         <div className="content-wrap">
           <div className="welcome-row">
             <div><p className="eyebrow"><span className="live-dot" /> Tuesday, September 08, 2026</p><h1>{sectionTitle}</h1><p className="lede">A considered space for the things you want to keep, share, and discover.</p></div>
-            <div className="welcome-tools"><button className="filter-button" onClick={() => toast("Feed filters are ready for your preferences.")}><Layers3 size={16} /> Curate feed <ChevronDown size={14} /></button><button className="round-create" onClick={() => setShowUpload(true)}><Upload size={17} /></button></div>
+            <div className="welcome-tools"><button className="filter-button" onClick={() => requireAuth("curate your personalized feed")}><Layers3 size={16} /> Curate feed <ChevronDown size={14} /></button><button className="round-create" onClick={() => requireAuth("create uploads and posts", () => setShowUpload(true))}><Upload size={17} /></button></div>
           </div>
 
           {section === "home" && <>
@@ -293,14 +302,14 @@ export default function Home() {
 
             <section className="story-strip"><div className="story-label"><span className="eyebrow">Your circles</span><p>Fresh from people you follow</p></div>{creators.map((creator, index) => <button className="story-avatar" key={creator.handle} onClick={() => toast(`Opening @${creator.handle}'s profile.`)}><span className={`story-ring ${creator.accent}`}><Avatar src={creator.avatar} size="lg" /></span><small>{index === 0 ? "Your story" : creator.name.split(" ")[0]}</small>{index === 0 && <span className="story-plus"><Plus size={11} /></span>}</button>)}</section>
 
-            <section className="content-section"><SectionHeader eyebrow="Picked for you" title="A better kind of scroll" action="See all" onAction={() => setSection("reels")} /><div className="video-grid">{filteredVideos.slice(0, 4).map((video) => <VideoCard key={video.id} video={video} onOpen={setPlaying} />)}</div></section>
+            <section className="content-section"><SectionHeader eyebrow="Picked for you" title="A better kind of scroll" action="See all" onAction={() => setSection("reels")} /><div className="video-grid">{filteredVideos.slice(0, 4).map((video) => <VideoCard key={video.id} video={video} onOpen={setPlaying} onRequireAuth={requireAuth} />)}</div></section>
           </>}
 
-          {section === "reels" && <section className="content-section reels-section"><div className="reels-banner"><div><span className="eyebrow"><Play size={13} fill="currentColor" /> Full-screen mode</span><h2>Reels, tuned to your rhythm.</h2><p>Short films from the creators and corners of VirgoX you keep coming back to.</p></div><button className="hero-button" onClick={() => setPlaying(videos[0])}>Start watching <Play size={15} fill="currentColor" /></button></div><SectionHeader eyebrow="Your next watch" title="Because you liked visual diaries" action="Refresh" onAction={() => toast("Your recommendations have been refreshed.")} /><div className="video-grid video-grid-wide">{filteredVideos.map((video) => <VideoCard key={video.id} video={video} onOpen={setPlaying} />)}</div></section>}
+          {section === "reels" && <section className="content-section reels-section"><div className="reels-banner"><div><span className="eyebrow"><Play size={13} fill="currentColor" /> Full-screen mode</span><h2>Reels, tuned to your rhythm.</h2><p>Short films from the creators and corners of VirgoX you keep coming back to.</p></div><button className="hero-button" onClick={() => setPlaying(videos[0])}>Start watching <Play size={15} fill="currentColor" /></button></div><SectionHeader eyebrow="Your next watch" title="Because you liked visual diaries" action="Refresh" onAction={() => requireAuth("refresh personalized recommendations")} /><div className="video-grid video-grid-wide">{filteredVideos.map((video) => <VideoCard key={video.id} video={video} onOpen={setPlaying} onRequireAuth={requireAuth} />)}</div></section>}
 
           {section === "discover" && <section className="content-section discover-section"><div className="discover-intro"><div><span className="eyebrow"><Compass size={13} /> Network discovery</span><h2>Follow the spark.</h2><p>New accounts, emerging voices, and timely ideas worth making room for.</p></div><div className="discover-stat"><strong>2,480</strong><span>new creators this week</span></div></div><div className="creator-layout"><div><SectionHeader eyebrow="Suggested accounts" title="People to know" action="Refresh" onAction={() => toast("Suggestions refreshed.")} /><div className="creator-grid">{creators.map((creator) => <div className="creator-card" key={creator.handle}><div className={`creator-cover ${creator.accent}`} /><Avatar src={creator.avatar} size="lg" className="creator-avatar" /><div className="creator-card-body"><div className="creator-name"><strong>{creator.name}</strong>{creator.verified && <VerifiedMark />}</div><p>@{creator.handle}</p><span>{creator.followers} followers</span><button className={`follow-button ${followed.includes(creator.handle) ? "following" : ""}`} onClick={() => toggleFollow(creator.handle)}>{followed.includes(creator.handle) ? <><Check size={14} /> Following</> : <><UserPlus size={14} /> Follow</>}</button></div></div>)}</div></div><aside className="discover-side"><div className="side-panel"><div className="side-panel-head"><span>Trending tags</span><MoreHorizontal size={16} /></div>{["#slowdesign", "#buildinpublic", "#visualdiary", "#filmmakers", "#softsystems"].map((tag, index) => <button className="tag-row" key={tag} onClick={() => setSearch(tag.slice(1))}><span>0{index + 1}</span><strong>{tag}</strong><small>{["18.2K", "12.9K", "9.3K", "7.8K", "5.2K"][index]} posts</small></button>)}</div><div className="mini-callout"><Zap size={17} /><strong>Make your mark</strong><p>Your next post could be the signal someone was waiting for.</p><button onClick={() => setShowUpload(true)}>Share something <ArrowUpRight size={14} /></button></div></aside></div></section>}
 
-          {section === "groups" && <section className="content-section groups-section"><div className="groups-intro"><div><span className="eyebrow"><Users size={13} /> Shared spaces</span><h2>Find your people.</h2><p>Private rooms, public conversations, and files that stay exactly where they belong.</p></div><button className="hero-button" onClick={() => toast("Group creation is ready for the next phase.")}><Plus size={15} /> Create a group</button></div><div className="group-grid">{groups.map((group) => <button className="group-card" key={group.name} onClick={() => toast(`Opening ${group.name}.`)}><div className="group-image"><img src={group.image} alt="" /><span className={`group-lock ${group.color}`}><LockKeyhole size={13} /></span></div><div className="group-body"><span className="eyebrow">{group.category}</span><h3>{group.name}</h3><p>{group.members}</p><span className="group-link">Enter group <ArrowUpRight size={15} /></span></div></button>)}</div><div className="group-lower"><div className="group-note"><div className="note-icon"><ShieldCheck size={19} /></div><div><strong>Built for trust</strong><p>Every group has clear roles, private file access, and moderation tools from day one.</p></div><ArrowUpRight size={17} /></div><div className="group-note mint-note"><div className="note-icon"><FileUp size={19} /></div><div><strong>Share without friction</strong><p>Drop large files, photos, and videos into a room without losing control.</p></div><ArrowUpRight size={17} /></div></div></section>}
+          {section === "groups" && <section className="content-section groups-section"><div className="groups-intro"><div><span className="eyebrow"><Users size={13} /> Shared spaces</span><h2>Find your people.</h2><p>Private rooms, public conversations, and files that stay exactly where they belong.</p></div><button className="hero-button" onClick={() => requireAuth("create a group", () => toast("Group creation is ready for the next phase."))}><Plus size={15} /> Create a group</button></div><div className="group-grid">{groups.map((group) => <button className="group-card" key={group.name} onClick={() => toast(`Opening ${group.name}.`)}><div className="group-image"><img src={group.image} alt="" /><span className={`group-lock ${group.color}`}><LockKeyhole size={13} /></span></div><div className="group-body"><span className="eyebrow">{group.category}</span><h3>{group.name}</h3><p>{group.members}</p><span className="group-link">Enter group <ArrowUpRight size={15} /></span></div></button>)}</div><div className="group-lower"><div className="group-note"><div className="note-icon"><ShieldCheck size={19} /></div><div><strong>Built for trust</strong><p>Every group has clear roles, private file access, and moderation tools from day one.</p></div><ArrowUpRight size={17} /></div><div className="group-note mint-note"><div className="note-icon"><FileUp size={19} /></div><div><strong>Share without friction</strong><p>Drop large files, photos, and videos into a room without losing control.</p></div><ArrowUpRight size={17} /></div></div></section>}
 
           <footer className="page-footer"><span><strong>VirgoX</strong> · a premium file-sharing social hub</span><span>Secure by default <ShieldCheck size={13} /> <i /> <a href="#privacy">Privacy</a> <a href="#about">About VirgoYT</a></span></footer>
         </div>
@@ -308,7 +317,7 @@ export default function Home() {
 
       {playing && <div className="modal-backdrop" onClick={() => setPlaying(null)}><div className="video-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close icon-button" onClick={() => setPlaying(null)}><X size={19} /></button><div className="modal-media"><img src={playing.image} alt="" /><span className="modal-play"><Play size={28} fill="currentColor" /></span><div className="modal-progress"><span /></div></div><div className="modal-copy"><div><span className="eyebrow">{playing.category}</span><h2>{playing.title}</h2><p>By @{playing.handle} · {playing.likes} likes</p></div><button className="hero-button" onClick={() => toast("Share link copied.")}><Send size={15} /> Share</button></div></div></div>}
 
-      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Upload size={13} /> New upload</span><h2>Put something good into the world.</h2></div><button className="icon-button" onClick={() => setShowUpload(false)}><X size={19} /></button></div><div className="drop-zone"><div className="drop-icon"><Upload size={24} /></div><strong>Drop a video, photo, or file here</strong><p>Up to 3 minutes for reels · high quality preserved</p><button onClick={() => toast("File picker will connect to secure storage next.")}><FileUp size={15} /> Choose from device</button></div><div className="upload-options"><button onClick={() => toast("Reel composer selected.")}><Video size={18} /><span><strong>Short video</strong><small>Reels up to 3 minutes</small></span><ArrowUpRight size={15} /></button><button onClick={() => toast("File transfer composer selected.")}><FolderOpen size={18} /><span><strong>Secure file share</strong><small>Send files with access controls</small></span><ArrowUpRight size={15} /></button><button onClick={() => toast("Post composer selected.")}><ImageIcon size={18} /><span><strong>Photo or post</strong><small>Share an update with your circles</small></span><ArrowUpRight size={15} /></button></div><p className="drawer-foot"><ShieldCheck size={13} /> Scanned before processing · private by default</p></div></div>}
+      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Upload size={13} /> New upload</span><h2>Put something good into the world.</h2></div><button className="icon-button" onClick={() => setShowUpload(false)}><X size={19} /></button></div><div className="drop-zone"><div className="drop-icon"><Upload size={24} /></div><strong>Drop a video, photo, or file here</strong><p>Up to 3 minutes for reels · high quality preserved</p><button onClick={() => requireAuth("upload files", () => toast("File picker will connect to secure storage next."))}><FileUp size={15} /> Choose from device</button></div><div className="upload-options"><button onClick={() => requireAuth("upload videos", () => toast("Reel composer selected."))}><Video size={18} /><span><strong>Short video</strong><small>Reels up to 3 minutes</small></span><ArrowUpRight size={15} /></button><button onClick={() => requireAuth("send files", () => toast("File transfer composer selected."))}><FolderOpen size={18} /><span><strong>Secure file share</strong><small>Send files with access controls</small></span><ArrowUpRight size={15} /></button><button onClick={() => requireAuth("publish posts", () => toast("Post composer selected."))}><ImageIcon size={18} /><span><strong>Photo or post</strong><small>Share an update with your circles</small></span><ArrowUpRight size={15} /></button></div><p className="drawer-foot"><ShieldCheck size={13} /> Scanned before processing · private by default</p></div></div>}
     </div>
   );
 }
