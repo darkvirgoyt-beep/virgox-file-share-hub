@@ -13,9 +13,15 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 // with "invalid oauth state". It returns void by design, so there is no URL to
 // stash across renders.
 export const startLogin = () => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
+  // These values are public OAuth routing metadata, not credentials. The
+  // fallbacks keep the static Vercel mirror usable when its build environment
+  // does not contain the managed WebDev variables. The callback must land on
+  // the full-stack VirgoX host because Vercel serves this mirror statically.
+  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL || "https://manus.im";
+  const appId = import.meta.env.VITE_APP_ID || "5gwWPoGS8Zu4sG7upmwupm";
+  const fullStackOrigin = "https://virgoshub-5gwwpogs.manus.space";
+  const redirectOrigin = window.location.hostname.endsWith("vercel.app") ? fullStackOrigin : window.location.origin;
+  const redirectUri = `${redirectOrigin}/api/oauth/callback`;
 
   const nonce = crypto.randomUUID();
   document.cookie = `${OAUTH_STATE_COOKIE}=${nonce}; Path=/; Max-Age=600; SameSite=None; Secure`;
