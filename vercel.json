@@ -4,9 +4,10 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist/public",
   "cleanUrls": true,
-  "functions": {
-    "api/index.ts": {
-      "maxDuration": 60
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://virgoshub-5gwwpogs.manus.space/api/:path*"
     }
-  }
+  ]
 }
