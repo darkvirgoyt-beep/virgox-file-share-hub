@@ -21,6 +21,8 @@ import {
 import { ENV } from "./_core/env.js";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _sql: ReturnType<typeof postgres> | null = null;
+let _schemaReady: Promise<void> | null = null;
 
 function getPostgresUrl(raw: string) {
   const url = new URL(raw.replace(/^mysql:/, "postgres:"));
@@ -36,10 +38,19 @@ function getPostgresUrl(raw: string) {
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(postgres(getPostgresUrl(process.env.DATABASE_URL), { max: 5, connect_timeout: 5, ssl: "require" }));
+      _sql = postgres(getPostgresUrl(process.env.DATABASE_URL), { max: 5, connect_timeout: 5, ssl: "require" });
+      _db = drizzle(_sql);
+      const sqlClient = _sql;
+      _schemaReady = (async () => {
+        await sqlClient`CREATE TABLE IF NOT EXISTS users (id serial PRIMARY KEY, "openId" varchar(64) NOT NULL UNIQUE, name text, email varchar(320), "loginMethod" varchar(64), role varchar(64) NOT NULL DEFAULT 'user', "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now(), "lastSignedIn" timestamptz NOT NULL DEFAULT now())`;
+        await sqlClient`CREATE TABLE IF NOT EXISTS profiles (id serial PRIMARY KEY, "userId" integer NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, username varchar(32) NOT NULL UNIQUE, "displayName" varchar(120) NOT NULL, bio text, "avatarUrl" text, "coverImageUrl" text, "followersCount" integer NOT NULL DEFAULT 0, "followingCount" integer NOT NULL DEFAULT 0, "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now())`;
+      })();
+      await _schemaReady;
     } catch (error) {
-      console.warn("[Database] Failed to connect");
+      console.warn("[Database] Failed to connect or bootstrap auth tables", error instanceof Error ? error.message : "unknown error");
+      _sql = null;
       _db = null;
+      _schemaReady = null;
     }
   }
   return _db;
