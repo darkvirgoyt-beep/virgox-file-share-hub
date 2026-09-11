@@ -287,7 +287,28 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = new Date();
-    let user = await db.getUserByOpenId(sessionUserId);
+    let user: User | undefined;
+    let profileDatabaseUnavailable = false;
+    try {
+      user = await db.getUserByOpenId(sessionUserId);
+    } catch (error) {
+      profileDatabaseUnavailable = true;
+      console.error("[Auth] Profile database unavailable; using session user", error);
+    }
+
+    const sessionUser: AuthenticatedUser = {
+      id: -1,
+      openId: session.openId,
+      name: session.name,
+      email: null,
+      loginMethod: "google",
+      role: "user",
+      createdAt: signedInAt,
+      updatedAt: signedInAt,
+      lastSignedIn: signedInAt,
+    };
+
+    if (profileDatabaseUnavailable) return sessionUser;
 
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
@@ -303,7 +324,7 @@ class SDKServer {
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
         console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
+        return sessionUser;
       }
     }
 
@@ -311,10 +332,14 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    try {
+      await db.upsertUser({
+        openId: user.openId,
+        lastSignedIn: signedInAt,
+      });
+    } catch (error) {
+      console.error("[Auth] Failed to update profile timestamp", error);
+    }
 
     return user;
   }

@@ -94,8 +94,11 @@ export default async function handler(req: any, res: any) {
     }
 
     const openId = `google:${profile.sub}`;
-    const db = await import("../../../server/db.js");
     try {
+      // Profile persistence is optional for authentication. Keep the OAuth
+      // callback independent from database driver/schema failures so a bad
+      // DATABASE_URL cannot turn a successful Google login into a 500.
+      const db = await import("../../../server/db.js");
       await db.upsertUser({
         openId,
         name: profile.name ?? profile.email.split("@")[0] ?? "Google user",
