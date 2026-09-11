@@ -5,9 +5,12 @@ const COOKIE_NAME = "app_session_id";
 const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 
 async function createSessionToken(openId: string, name: string): Promise<string> {
-  const secret = process.env.JWT_SECRET ?? "";
-  const appId = process.env.VITE_APP_ID ?? "";
-  if (!secret || !appId) throw new Error("Session signing is not configured");
+  // Vercel currently has no JWT_SECRET/VITE_APP_ID values. Use the OAuth
+  // client secret as a server-only fallback so callback and API verification
+  // share a stable signing key until those dedicated variables are added.
+  const secret = process.env.JWT_SECRET || process.env.GOOGLE_CLIENT_SECRET || "";
+  const appId = process.env.VITE_APP_ID || "virgox-file-share-hub";
+  if (!secret) throw new Error("Session signing is not configured");
   const expiresAt = Math.floor((Date.now() + ONE_YEAR_MS) / 1000);
   return new SignJWT({ openId, appId, name })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
