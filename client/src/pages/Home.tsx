@@ -256,16 +256,16 @@ export default function Home() {
 
         <div className="rail-spacer" />
         <div className="storage-card">
-          <div className="storage-top"><span><ShieldCheck size={15} /> Secure vault</span><span>68%</span></div>
-          <div className="storage-bar"><span /></div>
-          <p>6.8 GB of 10 GB used</p>
-          <button onClick={() => requireAuth("upgrade your secure space")}><Crown size={14} /> Upgrade space</button>
+          <div className="storage-top"><span><ShieldCheck size={15} /> Secure vault</span><span>{isAuthenticated ? "0%" : "—"}</span></div>
+          <div className={`storage-bar ${!isAuthenticated ? "storage-bar-locked" : ""}`}><span /></div>
+          <p>{isAuthenticated ? "0 GB of 10 GB used" : "Sign in to view your storage"}</p>
+          <button onClick={() => requireAuth("open your secure space")}><Crown size={14} /> {isAuthenticated ? "Upgrade space" : "Sign in to unlock"}</button>
         </div>
         <div className="rail-footer">
-          <button className="user-row" onClick={() => toast("Profile settings coming soon.")}>
-            <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" />
-            <span><strong>{user?.name || "Virgo creator"}</strong><small>@{user?.name?.toLowerCase().replace(/\s+/g, "") || "virgoyt"}</small></span>
-            <Settings2 size={16} />
+          <button className={`user-row ${!isAuthenticated ? "user-row-guest" : ""}`} onClick={() => isAuthenticated ? toast("Profile settings coming soon.") : startLogin()}>
+            {isAuthenticated ? <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" /> : <span className="guest-avatar"><UserPlus size={16} /></span>}
+            <span><strong>{loading ? "Checking session…" : user?.name || "Guest visitor"}</strong><small>{loading ? "Please wait" : isAuthenticated ? `@${user?.name?.toLowerCase().replace(/\s+/g, "") || "virgoyt"}` : "Sign in to your account"}</small></span>
+            {isAuthenticated ? <Settings2 size={16} /> : <ArrowUpRight size={16} />}
           </button>
           <p>Built with intent · VirgoYT</p>
         </div>
