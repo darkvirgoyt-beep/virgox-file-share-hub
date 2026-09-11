@@ -10,6 +10,7 @@ import {
   getProfileByUserId,
   getPublicFeed,
   getPublicGroups,
+  createProfile,
   recordVideoView,
 } from "./db.js";
 
@@ -30,6 +31,10 @@ export const appRouter = router({
   }),
   profiles: router({
     me: protectedProcedure.query(({ ctx }) => getProfileByUserId(ctx.user.id)),
+    create: protectedProcedure.input(z.object({
+      username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
+      displayName: z.string().trim().min(1).max(120),
+    })).mutation(({ ctx, input }) => createProfile({ ...input, userId: ctx.user.id })),
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),

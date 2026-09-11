@@ -83,6 +83,21 @@ export async function getProfileByUserId(userId: number) {
   return result[0];
 }
 
+export async function createProfile(input: {
+  userId: number;
+  username: string;
+  displayName: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable while creating profile");
+  await db.insert(profiles).values({
+    userId: input.userId,
+    username: input.username,
+    displayName: input.displayName,
+  });
+  return getProfileByUserId(input.userId);
+}
+
 export async function getPublicFeed(limit = 30) {
   const db = await getDb();
   if (!db) return [];
