@@ -10,6 +10,7 @@ import {
   comments,
   follows,
   posts,
+  notifications,
   storedFiles,
   User,
   users,
@@ -209,6 +210,34 @@ export async function createAuditLog(input: {
   }
 }
 
+export async function createNotification(input: {
+  recipientId: number;
+  actorId?: number;
+  type: string;
+  resourceType?: string;
+  resourceId?: number;
+  title: string;
+  body?: string;
+}) {
+  const db = await getDb();
+  if (!db || input.recipientId === input.actorId) return;
+  await db.insert(notifications).values(input);
+}
+
+export async function listNotifications(userId: number, limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.select({ id: notifications.id, actorId: notifications.actorId, type: notifications.type, resourceType: notifications.resourceType, resourceId: notifications.resourceId, title: notifications.title, body: notifications.body, readAt: notifications.readAt, createdAt: notifications.createdAt })
+    .from(notifications).where(eq(notifications.recipientId, userId)).orderBy(desc(notifications.createdAt)).limit(limit).offset(offset);
+}
+
+export async function markNotificationRead(userId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, notificationId), eq(notifications.recipientId, userId)));
+  return { success: true } as const;
+}
+
 export async function getStoredFileById(fileId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -272,6 +301,7 @@ export async function followUser(followerId: number, followingId: number) {
     await db.insert(follows).values({ followerId, followingId });
     await db.update(profiles).set({ followingCount: sql`${profiles.followingCount} + 1` }).where(eq(profiles.userId, followerId));
     await db.update(profiles).set({ followersCount: sql`${profiles.followersCount} + 1` }).where(eq(profiles.userId, followingId));
+    await createNotification({ recipientId: followingId, actorId: followerId, type: "follow", resourceType: "profile", resourceId: followingId, title: "New follower" });
   }
   return { following: true } as const;
 }
@@ -299,6 +329,8 @@ export async function toggleVideoLike(userId: number, videoId: number) {
   }
   await db.insert(videoInteractions).values({ userId, videoId, type: "like" });
   await db.update(videos).set({ likesCount: sql`${videos.likesCount} + 1` }).where(eq(videos.id, videoId));
+  const owner = await db.select({ creatorId: videos.creatorId }).from(videos).where(eq(videos.id, videoId)).limit(1);
+  if (owner[0]) await createNotification({ recipientId: owner[0].creatorId, actorId: userId, type: "like", resourceType: "video", resourceId: videoId, title: "Your video was liked" });
   return { liked: true } as const;
 }
 
@@ -307,6 +339,10 @@ export async function createComment(input: { authorId: number; videoId?: number;
   if (!db) throw new Error("Database unavailable");
   const result = await db.insert(comments).values(input);
   if (input.videoId) await db.update(videos).set({ commentsCount: sql`${videos.commentsCount} + 1` }).where(eq(videos.id, input.videoId));
+  if (input.videoId) {
+    const owner = await db.select({ creatorId: videos.creatorId }).from(videos).where(eq(videos.id, input.videoId)).limit(1);
+    if (owner[0]) await createNotification({ recipientId: owner[0].creatorId, actorId: input.authorId, type: "comment", resourceType: "video", resourceId: input.videoId, title: "New comment on your video" });
+  }
   return { id: result[0].insertId } as const;
 }
 

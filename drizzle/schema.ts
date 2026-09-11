@@ -156,6 +156,19 @@ export const auditLogs = mysqlTable("audit_logs", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  recipientId: int("recipientId").notNull(),
+  actorId: int("actorId"),
+  type: varchar("type", { length: 40 }).notNull(),
+  resourceType: varchar("resourceType", { length: 40 }),
+  resourceId: int("resourceId"),
+  title: varchar("title", { length: 180 }).notNull(),
+  body: text("body"),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Profile = typeof profiles.$inferSelect;

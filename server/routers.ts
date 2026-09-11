@@ -24,6 +24,8 @@ import {
   createGroup,
   joinGroup,
   leaveGroup,
+  listNotifications,
+  markNotificationRead,
   createProfile,
   recordVideoView,
   listOwnedFiles,
@@ -41,6 +43,10 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+  }),
+  notifications: router({
+    list: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ ctx, input }) => listNotifications(ctx.user.id, input?.limit ?? 50, input?.offset ?? 0)),
+    markRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(({ ctx, input }) => markNotificationRead(ctx.user.id, input.notificationId)),
   }),
   feed: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicFeed(input?.limit ?? 30)),
