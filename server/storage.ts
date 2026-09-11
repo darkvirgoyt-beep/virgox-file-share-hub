@@ -18,7 +18,16 @@ function getForgeConfig() {
 }
 
 function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
+  let key: string;
+  try {
+    key = decodeURIComponent(relKey).replace(/^\/+/, "");
+  } catch {
+    throw new Error("Invalid storage key");
+  }
+  if (!key || key.length > 500 || key.includes("\\") || /[\u0000-\u001f]/.test(key) || key.split("/").some((part) => part === "..")) {
+    throw new Error("Invalid storage key");
+  }
+  return key;
 }
 
 function appendHashSuffix(relKey: string): string {
