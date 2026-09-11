@@ -56,10 +56,26 @@ export default async function handler(req: any, res: any) {
         }),
       },
     );
-    const tokenData = (await tokenResponse.json()) as { access_token?: unknown };
+    const tokenData = (await tokenResponse.json()) as {
+      access_token?: unknown;
+      error?: unknown;
+      error_description?: unknown;
+    };
     const accessToken = tokenData.access_token;
     if (!tokenResponse.ok || typeof accessToken !== "string" || !accessToken) {
-      res.status(502).json({ error: "Google did not return an access token" });
+      console.error("[Google OAuth] Token exchange rejected", {
+        status: tokenResponse.status,
+        error: tokenData.error,
+        error_description: tokenData.error_description,
+      });
+      res.status(502).json({
+        error: "Google did not return an access token",
+        google_error: typeof tokenData.error === "string" ? tokenData.error : undefined,
+        google_error_description:
+          typeof tokenData.error_description === "string"
+            ? tokenData.error_description
+            : undefined,
+      });
       return;
     }
 
