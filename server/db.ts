@@ -1,10 +1,13 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   groups,
+  groupMembers,
   InsertUser,
   profiles,
   reports,
+  auditLogs,
+  storedFiles,
   User,
   users,
   videoInteractions,
@@ -176,4 +179,82 @@ export async function createReport(input: {
   if (!db) throw new Error("Database unavailable");
   await db.insert(reports).values(input);
   return { success: true } as const;
+}
+
+export async function createAuditLog(input: {
+  actorId?: number;
+  action: string;
+  resourceType?: string;
+  resourceId?: number;
+  requestId?: string;
+  ipAddress?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(auditLogs).values(input);
+  } catch (error) {
+    // Audit logging must not turn an otherwise authorized user action into a
+    // failed request during rolling migrations or a temporary audit-table outage.
+    console.error("[AuditLog] persistence failed", {
+      action: input.action,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
+  }
+}
+
+export async function getStoredFileById(fileId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.select().from(storedFiles).where(eq(storedFiles.id, fileId)).limit(1);
+  return result[0];
+}
+
+export async function canAccessStoredFile(fileId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.select({ file: storedFiles })
+    .from(storedFiles)
+    .leftJoin(groupMembers, and(
+      eq(groupMembers.groupId, storedFiles.groupId),
+      eq(groupMembers.userId, userId),
+      eq(groupMembers.status, "active"),
+    ))
+    .where(and(
+      eq(storedFiles.id, fileId),
+      eq(storedFiles.scanStatus, "clean"),
+      or(
+        eq(storedFiles.visibility, "public"),
+        eq(storedFiles.ownerId, userId),
+        eq(groupMembers.userId, userId),
+      ),
+    )).limit(1);
+  return result[0]?.file;
+}
+
+export async function listOwnedFiles(userId: number, limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.select({
+    id: storedFiles.id,
+    originalName: storedFiles.originalName,
+    mimeType: storedFiles.mimeType,
+    sizeBytes: storedFiles.sizeBytes,
+    scanStatus: storedFiles.scanStatus,
+    visibility: storedFiles.visibility,
+    createdAt: storedFiles.createdAt,
+  }).from(storedFiles)
+    .where(eq(storedFiles.ownerId, userId))
+    .orderBy(desc(storedFiles.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function updateStoredFileScanStatus(fileId: number, scanStatus: "pending" | "clean" | "blocked") {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(storedFiles).set({ scanStatus }).where(eq(storedFiles.id, fileId));
 }

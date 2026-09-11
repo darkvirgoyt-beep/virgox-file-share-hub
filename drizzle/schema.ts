@@ -1,4 +1,4 @@
-import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
+import { boolean, int, json, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
 
 /** Core user table backing Manus auth. Never expose openId or internal role fields to clients. */
 export const users = mysqlTable("users", {
@@ -141,6 +141,18 @@ export const searchHistory = mysqlTable("search_history", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   query: varchar("query", { length: 160 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const auditLogs = mysqlTable("audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  actorId: int("actorId"),
+  action: varchar("action", { length: 80 }).notNull(),
+  resourceType: varchar("resourceType", { length: 80 }),
+  resourceId: int("resourceId"),
+  requestId: varchar("requestId", { length: 80 }),
+  ipAddress: varchar("ipAddress", { length: 64 }),
+  metadata: json("metadata"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

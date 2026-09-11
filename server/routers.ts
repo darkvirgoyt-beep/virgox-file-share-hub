@@ -3,15 +3,20 @@ import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
+import { storageGetSignedUrl } from "./storage.js";
 import {
   createReport,
+  canAccessStoredFile,
+  createAuditLog,
   createVideoDraft,
   getProfileByUserId,
   getPublicFeed,
   getPublicGroups,
   createProfile,
   recordVideoView,
+  listOwnedFiles,
+  updateStoredFileScanStatus,
 } from "./db.js";
 
 const visibilitySchema = z.enum(["public", "followers", "private"]);
@@ -38,6 +43,27 @@ export const appRouter = router({
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),
+  }),
+  files: router({
+    mine: protectedProcedure.input(z.object({
+      limit: z.number().int().min(1).max(100).default(50),
+      offset: z.number().int().min(0).max(100_000).default(0),
+    }).optional()).query(({ ctx, input }) => listOwnedFiles(ctx.user.id, input?.limit ?? 50, input?.offset ?? 0)),
+    downloadUrl: protectedProcedure.input(z.object({ fileId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const file = await canAccessStoredFile(input.fileId, ctx.user.id);
+      if (!file) throw new TRPCError({ code: "NOT_FOUND", message: "File is unavailable" });
+      const url = await storageGetSignedUrl(file.storageKey);
+      await createAuditLog({ actorId: ctx.user.id, action: "file.download_url", resourceType: "file", resourceId: file.id });
+      return { url, expiresInSeconds: 300 } as const;
+    }),
+    setScanStatus: adminProcedure.input(z.object({
+      fileId: z.number().int().positive(),
+      status: z.enum(["pending", "clean", "blocked"]),
+    })).mutation(async ({ ctx, input }) => {
+      await updateStoredFileScanStatus(input.fileId, input.status);
+      await createAuditLog({ actorId: ctx.user.id, action: "file.scan_status", resourceType: "file", resourceId: input.fileId, metadata: { status: input.status } });
+      return { success: true } as const;
+    }),
   }),
   videos: router({
     createDraft: protectedProcedure.input(z.object({
