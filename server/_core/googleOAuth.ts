@@ -2,11 +2,11 @@ import crypto from "node:crypto";
 import type { Express, Request, Response } from "express";
 import axios from "axios";
 import { parse as parseCookieHeader } from "cookie";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
-import * as db from "../db";
-import { ENV } from "./env";
-import { getSessionCookieOptions } from "./cookies";
-import { sdk } from "./sdk";
+import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
+import * as db from "../db.js";
+import { ENV } from "./env.js";
+import { getSessionCookieOptions } from "./cookies.js";
+import { sdk } from "./sdk.js";
 
 const STATE_COOKIE = "google_oauth_state";
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";

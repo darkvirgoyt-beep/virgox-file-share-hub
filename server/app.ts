@@ -1,11 +1,10 @@
 import express from "express";
 import type { Express } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerGoogleOAuthRoutes } from "./_core/googleOAuth";
-import { registerStorageProxy } from "./_core/storageProxy";
-import { appRouter } from "./routers";
-import { createContext } from "./_core/context";
-import { serveStatic, setupVite } from "./_core/vite";
+import { registerGoogleOAuthRoutes } from "./_core/googleOAuth.js";
+import { registerStorageProxy } from "./_core/storageProxy.js";
+import { appRouter } from "./routers.js";
+import { createContext } from "./_core/context.js";
 
 export function createApp(): Express {
   const app = express();
@@ -29,6 +28,7 @@ export function createApp(): Express {
 
 export async function createDevelopmentApp(): Promise<Express> {
   const app = createApp();
+  const { serveStatic, setupVite } = await import("./_core/vite.js");
   if (process.env.NODE_ENV === "development") {
     const { createServer } = await import("http");
     await setupVite(app, createServer(app));
