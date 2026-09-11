@@ -95,13 +95,18 @@ export default async function handler(req: any, res: any) {
 
     const openId = `google:${profile.sub}`;
     const db = await import("../../../server/db.js");
-    await db.upsertUser({
-      openId,
-      name: profile.name ?? profile.email.split("@")[0] ?? "Google user",
-      email: profile.email,
-      loginMethod: "google",
-      lastSignedIn: new Date(),
-    });
+    try {
+      await db.upsertUser({
+        openId,
+        name: profile.name ?? profile.email.split("@")[0] ?? "Google user",
+        email: profile.email,
+        loginMethod: "google",
+        lastSignedIn: new Date(),
+      });
+    } catch (error) {
+      // Keep authentication available if the optional profile persistence database is down.
+      console.error("[Google OAuth] User persistence unavailable; continuing login", error);
+    }
     const { sdk } = await import("../../../server/_core/sdk.js");
     const sessionToken = await sdk.createSessionToken(openId, {
       name: profile.name ?? profile.email,
