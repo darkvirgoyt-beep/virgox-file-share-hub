@@ -1,11 +1,22 @@
-import axios from "axios";
 import { parse as parseCookieHeader } from "cookie";
 import { COOKIE_NAME, ONE_YEAR_MS } from "../../../shared/const.js";
-import * as db from "../../../server/db.js";
-import { sdk } from "../../../server/_core/sdk.js";
 
 function getCookieOptions() {
   return `Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(ONE_YEAR_MS / 1000)}`;
+}
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  timeoutMs = 30_000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export default async function handler(req: any, res: any) {
@@ -31,34 +42,43 @@ export default async function handler(req: any, res: any) {
   const callbackUrl = process.env.GOOGLE_CALLBACK_URL || `${protocol}://${host}/api/auth/google/callback`;
 
   try {
-    const tokenResponse = await axios.post(
+    const tokenResponse = await fetchWithTimeout(
       "https://oauth2.googleapis.com/token",
-      new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: callbackUrl,
-        grant_type: "authorization_code",
-      }).toString(),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 30000 },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: callbackUrl,
+          grant_type: "authorization_code",
+        }),
+      },
     );
-    const accessToken = tokenResponse.data?.access_token;
-    if (typeof accessToken !== "string" || !accessToken) {
+    const tokenData = (await tokenResponse.json()) as { access_token?: unknown };
+    const accessToken = tokenData.access_token;
+    if (!tokenResponse.ok || typeof accessToken !== "string" || !accessToken) {
       res.status(502).json({ error: "Google did not return an access token" });
       return;
     }
 
-    const userResponse = await axios.get("https://openidconnect.googleapis.com/v1/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      timeout: 30000,
-    });
-    const profile = userResponse.data as { sub?: string; email?: string; name?: string };
-    if (!profile.sub || !profile.email) {
+    const userResponse = await fetchWithTimeout(
+      "https://openidconnect.googleapis.com/v1/userinfo",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const profile = (await userResponse.json()) as {
+      sub?: string;
+      email?: string;
+      name?: string;
+    };
+    if (!userResponse.ok || !profile.sub || !profile.email) {
       res.status(502).json({ error: "Google profile is missing required identity fields" });
       return;
     }
 
     const openId = `google:${profile.sub}`;
+    const db = await import("../../../server/db.js");
     await db.upsertUser({
       openId,
       name: profile.name ?? profile.email.split("@")[0] ?? "Google user",
@@ -66,6 +86,7 @@ export default async function handler(req: any, res: any) {
       loginMethod: "google",
       lastSignedIn: new Date(),
     });
+    const { sdk } = await import("../../../server/_core/sdk.js");
     const sessionToken = await sdk.createSessionToken(openId, {
       name: profile.name ?? profile.email,
       expiresInMs: ONE_YEAR_MS,
@@ -81,3 +102,5 @@ export default async function handler(req: any, res: any) {
     res.status(500).json({ error: "Google OAuth callback failed" });
   }
 }
+
+export const config = { runtime: "nodejs" };
