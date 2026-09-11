@@ -1,6 +1,6 @@
 import "dotenv/config";
 import net from "net";
-import { createDevelopmentApp } from "../app";
+import { createDevelopmentApp } from "../app.js";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
