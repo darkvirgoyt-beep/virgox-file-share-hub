@@ -13,6 +13,13 @@ import {
   getProfileByUserId,
   getPublicFeed,
   getPublicGroups,
+  getPublicPosts,
+  listVideoComments,
+  createComment,
+  createPost,
+  followUser,
+  unfollowUser,
+  toggleVideoLike,
   createProfile,
   recordVideoView,
   listOwnedFiles,
@@ -33,6 +40,7 @@ export const appRouter = router({
   }),
   feed: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicFeed(input?.limit ?? 30)),
+    posts: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ input }) => getPublicPosts(input?.limit ?? 30, input?.offset ?? 0)),
   }),
   profiles: router({
     me: protectedProcedure.query(({ ctx }) => getProfileByUserId(ctx.user.id)),
@@ -40,6 +48,8 @@ export const appRouter = router({
       username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
       displayName: z.string().trim().min(1).max(120),
     })).mutation(({ ctx, input }) => createProfile({ ...input, userId: ctx.user.id })),
+    follow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => followUser(ctx.user.id, input.userId)),
+    unfollow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => unfollowUser(ctx.user.id, input.userId)),
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),
@@ -82,6 +92,17 @@ export const appRouter = router({
       watchSeconds: z.number().int().min(0).max(180),
       completed: z.boolean(),
     })).mutation(({ ctx, input }) => recordVideoView({ ...input, userId: ctx.user.id })),
+    like: protectedProcedure.input(z.object({ videoId: z.number().int().positive() })).mutation(({ ctx, input }) => toggleVideoLike(ctx.user.id, input.videoId)),
+    comments: publicProcedure.input(z.object({ videoId: z.number().int().positive(), limit: z.number().int().min(1).max(100).default(50), offset: z.number().int().min(0).max(100_000).default(0) })).query(({ input }) => listVideoComments(input.videoId, input.limit, input.offset)),
+    comment: protectedProcedure.input(z.object({ videoId: z.number().int().positive(), body: z.string().trim().min(1).max(1000) })).mutation(({ ctx, input }) => createComment({ ...input, authorId: ctx.user.id })),
+  }),
+  posts: router({
+    create: protectedProcedure.input(z.object({
+      body: z.string().trim().min(1).max(10_000),
+      visibility: z.enum(["public", "followers", "group", "private"]).default("public"),
+      groupId: z.number().int().positive().optional(),
+      mediaKey: z.string().trim().max(500).optional(),
+    })).mutation(({ ctx, input }) => createPost({ ...input, authorId: ctx.user.id })),
   }),
   moderation: router({
     report: protectedProcedure.input(z.object({

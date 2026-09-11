@@ -1,4 +1,4 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   groups,
@@ -7,6 +7,9 @@ import {
   profiles,
   reports,
   auditLogs,
+  comments,
+  follows,
+  posts,
   storedFiles,
   User,
   users,
@@ -257,4 +260,73 @@ export async function updateStoredFileScanStatus(fileId: number, scanStatus: "pe
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(storedFiles).set({ scanStatus }).where(eq(storedFiles.id, fileId));
+}
+
+export async function followUser(followerId: number, followingId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (followerId === followingId) throw new Error("You cannot follow yourself");
+  const existing = await db.select({ id: follows.id }).from(follows)
+    .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId))).limit(1);
+  if (!existing[0]) {
+    await db.insert(follows).values({ followerId, followingId });
+    await db.update(profiles).set({ followingCount: sql`${profiles.followingCount} + 1` }).where(eq(profiles.userId, followerId));
+    await db.update(profiles).set({ followersCount: sql`${profiles.followersCount} + 1` }).where(eq(profiles.userId, followingId));
+  }
+  return { following: true } as const;
+}
+
+export async function unfollowUser(followerId: number, followingId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)));
+  if (result[0].affectedRows > 0) {
+    await db.update(profiles).set({ followingCount: sql`greatest(${profiles.followingCount} - 1, 0)` }).where(eq(profiles.userId, followerId));
+    await db.update(profiles).set({ followersCount: sql`greatest(${profiles.followersCount} - 1, 0)` }).where(eq(profiles.userId, followingId));
+  }
+  return { following: false } as const;
+}
+
+export async function toggleVideoLike(userId: number, videoId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const existing = await db.select({ id: videoInteractions.id }).from(videoInteractions)
+    .where(and(eq(videoInteractions.userId, userId), eq(videoInteractions.videoId, videoId), eq(videoInteractions.type, "like"))).limit(1);
+  if (existing[0]) {
+    await db.delete(videoInteractions).where(eq(videoInteractions.id, existing[0].id));
+    await db.update(videos).set({ likesCount: sql`greatest(${videos.likesCount} - 1, 0)` }).where(eq(videos.id, videoId));
+    return { liked: false } as const;
+  }
+  await db.insert(videoInteractions).values({ userId, videoId, type: "like" });
+  await db.update(videos).set({ likesCount: sql`${videos.likesCount} + 1` }).where(eq(videos.id, videoId));
+  return { liked: true } as const;
+}
+
+export async function createComment(input: { authorId: number; videoId?: number; postId?: number; body: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(comments).values(input);
+  if (input.videoId) await db.update(videos).set({ commentsCount: sql`${videos.commentsCount} + 1` }).where(eq(videos.id, input.videoId));
+  return { id: result[0].insertId } as const;
+}
+
+export async function listVideoComments(videoId: number, limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.select({ id: comments.id, authorId: comments.authorId, body: comments.body, createdAt: comments.createdAt })
+    .from(comments).where(eq(comments.videoId, videoId)).orderBy(desc(comments.createdAt)).limit(limit).offset(offset);
+}
+
+export async function createPost(input: { authorId: number; body: string; visibility: "public" | "followers" | "group" | "private"; groupId?: number; mediaKey?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(posts).values(input);
+  return { id: result[0].insertId } as const;
+}
+
+export async function getPublicPosts(limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.select({ id: posts.id, authorId: posts.authorId, body: posts.body, mediaKey: posts.mediaKey, createdAt: posts.createdAt })
+    .from(posts).where(eq(posts.visibility, "public")).orderBy(desc(posts.createdAt)).limit(limit).offset(offset);
 }
