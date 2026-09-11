@@ -310,6 +310,12 @@ class SDKServer {
 
     if (profileDatabaseUnavailable) return sessionUser;
 
+    // Google OAuth sessions are already fully authenticated locally. If the
+    // profile row is missing, do not send the Google session token to the
+    // legacy Manus user-sync endpoint; that endpoint expects a different JWT
+    // and can fail with an invalid URL in native Vercel deployments.
+    if (!user && sessionUserId.startsWith("google:")) return sessionUser;
+
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
       try {
