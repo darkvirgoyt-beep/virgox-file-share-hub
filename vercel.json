@@ -4,6 +4,9 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist/public",
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index.ts" }
+  ],
   "functions": {
     "api/index.ts": {
       "maxDuration": 60
