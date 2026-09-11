@@ -11,7 +11,20 @@ export default function handler(req: any, res: any) {
   const forwardedProto = req.headers?.["x-forwarded-proto"]?.split(",")[0]?.trim();
   const protocol = forwardedProto || "https";
   const host = req.headers?.host;
-  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || `${protocol}://${host}/api/auth/google/callback`;
+  const requestCallbackUrl = `${protocol}://${host}/api/auth/google/callback`;
+  const configuredCallbackUrl = process.env.GOOGLE_CALLBACK_URL;
+  let configuredHost: string | undefined;
+  try {
+    configuredHost = configuredCallbackUrl ? new URL(configuredCallbackUrl).host : undefined;
+  } catch {
+    configuredHost = undefined;
+  }
+  // Do not send OAuth to an old Vercel deployment hostname after a project
+  // rename. Keep an explicitly configured callback only when it matches the
+  // hostname the user is currently visiting.
+  const callbackUrl = configuredCallbackUrl && configuredHost === host
+    ? configuredCallbackUrl
+    : requestCallbackUrl;
 
   res.setHeader(
     "Set-Cookie",

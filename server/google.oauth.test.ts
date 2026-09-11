@@ -3,7 +3,7 @@ import axios from "axios";
 import { ENV } from "./_core/env";
 
 describe("Google OAuth configuration", () => {
-  const productionCallback = "https://virgox-file-share-hub.vercel.app/api/auth/google/callback";
+  const productionCallback = "https://le-share-hub.vercel.app/api/auth/google/callback";
 
   it("accepts the configured web client at Google’s token endpoint", async () => {
     if (!ENV.googleClientId && !ENV.googleClientSecret && !ENV.googleCallbackUrl) return;

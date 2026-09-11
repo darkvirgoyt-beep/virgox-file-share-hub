@@ -211,18 +211,18 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
+      // Google OAuth sessions are signed locally and do not always have a
+      // Manus VITE_APP_ID.  appId is metadata for Manus sessions, not an
+      // authentication requirement; rejecting an otherwise valid cookie here
+      // makes the UI fall back to the guest/login state after OAuth redirects.
+      if (!isNonEmptyString(openId) || !isNonEmptyString(name)) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
       }
 
       return {
         openId,
-        appId,
+        appId: typeof appId === "string" ? appId : "",
         name,
       };
     } catch (error) {

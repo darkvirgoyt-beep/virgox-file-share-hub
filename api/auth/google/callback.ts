@@ -53,7 +53,17 @@ export default async function handler(req: any, res: any) {
   const forwardedProto = req.headers?.["x-forwarded-proto"]?.split(",")[0]?.trim();
   const protocol = forwardedProto || "https";
   const host = req.headers?.host;
-  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || `${protocol}://${host}/api/auth/google/callback`;
+  const requestCallbackUrl = `${protocol}://${host}/api/auth/google/callback`;
+  const configuredCallbackUrl = process.env.GOOGLE_CALLBACK_URL;
+  let configuredHost: string | undefined;
+  try {
+    configuredHost = configuredCallbackUrl ? new URL(configuredCallbackUrl).host : undefined;
+  } catch {
+    configuredHost = undefined;
+  }
+  const callbackUrl = configuredCallbackUrl && configuredHost === host
+    ? configuredCallbackUrl
+    : requestCallbackUrl;
 
   try {
     const tokenResponse = await fetchWithTimeout(
