@@ -12,11 +12,10 @@ const STATE_COOKIE = "google_oauth_state";
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
-const CANONICAL_GOOGLE_CALLBACK_URL = "https://virgox-file-share-hub.vercel.app/api/auth/google/callback";
-function getCallbackUrl(_req: Request) {
-  return ENV.googleCallbackUrl === CANONICAL_GOOGLE_CALLBACK_URL
-    ? ENV.googleCallbackUrl
-    : CANONICAL_GOOGLE_CALLBACK_URL;
+function getCallbackUrl(req: Request) {
+  if (ENV.googleCallbackUrl) return ENV.googleCallbackUrl;
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim() || req.protocol;
+  return `${protocol}://${req.get("host")}/api/auth/google/callback`;
 }
 
 function setStateCookie(res: Response, state: string) {
