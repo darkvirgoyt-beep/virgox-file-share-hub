@@ -1,8 +1,8 @@
 import axios from "axios";
 import { parse as parseCookieHeader } from "cookie";
-import { COOKIE_NAME, ONE_YEAR_MS } from "../../../shared/const";
-import * as db from "../../../server/db";
-import { sdk } from "../../../server/_core/sdk";
+import { COOKIE_NAME, ONE_YEAR_MS } from "../../../shared/const.js";
+import * as db from "../../../server/db.js";
+import { sdk } from "../../../server/_core/sdk.js";
 
 function getCookieOptions() {
   return `Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(ONE_YEAR_MS / 1000)}`;
