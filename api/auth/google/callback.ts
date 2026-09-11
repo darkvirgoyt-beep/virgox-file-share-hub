@@ -1,5 +1,6 @@
 import { parse as parseCookieHeader } from "cookie";
 import { SignJWT } from "jose";
+import { consumeRateLimit } from "../../../server/_core/security.js";
 
 const COOKIE_NAME = "app_session_id";
 const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
@@ -34,6 +35,15 @@ async function fetchWithTimeout(
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  const address = req.headers?.["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  const rate = consumeRateLimit("oauth-callback", address, 20, 60_000);
+  if (!rate.allowed) {
+    res.setHeader("Retry-After", String(rate.retryAfter));
+    res.status(429).json({ error: "Too many login attempts. Please try again later." });
+    return;
+  }
   const code = typeof req.query?.code === "string" ? req.query.code : undefined;
   const state = typeof req.query?.state === "string" ? req.query.state : undefined;
   const cookies = parseCookieHeader(req.headers?.cookie ?? "");
@@ -94,11 +104,6 @@ export default async function handler(req: any, res: any) {
       });
       res.status(502).json({
         error: "Google did not return an access token",
-        google_error: typeof tokenData.error === "string" ? tokenData.error : undefined,
-        google_error_description:
-          typeof tokenData.error_description === "string"
-            ? tokenData.error_description
-            : undefined,
       });
       return;
     }

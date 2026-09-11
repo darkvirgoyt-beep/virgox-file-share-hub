@@ -17,6 +17,22 @@ Do not open a public issue for a suspected security vulnerability. Contact the r
 - Use security headers, TLS database connections, restricted CORS, generic client errors, and correlation IDs in production.
 - Re-run the attacker-perspective review after every major feature update.
 
+## Implemented baseline controls
+
+The application now applies security headers, disables Express fingerprinting,
+adds request IDs, bounds JSON and URL-encoded request bodies, rate-limits the
+tRPC and Google OAuth endpoints, validates storage proxy paths against
+traversal/control-character abuse, and removes upstream OAuth error details
+from client responses. Authenticated tRPC procedures continue to derive the
+user from the server-verified session rather than trusting client identity
+fields.
+
+These controls are defense-in-depth, not a guarantee of security. The current
+repository still requires provider-level malware scanning, durable audit-log
+storage, MFA/device-risk controls, IP reputation intelligence, secret rotation,
+encrypted database/storage configuration, tested backups, and an incident
+response process before those capabilities can be considered operational.
+
 ## Sensitive attachment warning
 
 A local OAuth JSON attachment was supplied during project setup. Its credentials were intentionally not copied into this repository. Any credentials contained in that file or previously committed elsewhere should be revoked and rotated before use.

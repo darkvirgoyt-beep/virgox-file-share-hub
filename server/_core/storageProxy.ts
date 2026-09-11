@@ -9,6 +9,21 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
+    // Storage keys are opaque identifiers, never filesystem paths. Reject
+    // traversal, encoded separators, and control characters before forwarding
+    // anything to the storage provider.
+    let decodedKey: string;
+    try {
+      decodedKey = decodeURIComponent(key);
+    } catch {
+      res.status(400).send("Invalid storage key");
+      return;
+    }
+    if (decodedKey.includes("..") || decodedKey.includes("\\") || /[\u0000-\u001f]/.test(decodedKey)) {
+      res.status(400).send("Invalid storage key");
+      return;
+    }
+
     if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
       res.status(500).send("Storage proxy not configured");
       return;
@@ -19,7 +34,7 @@ export function registerStorageProxy(app: Express) {
         "v1/storage/presign/get",
         ENV.forgeApiUrl.replace(/\/+$/, "") + "/",
       );
-      forgeUrl.searchParams.set("path", key);
+      forgeUrl.searchParams.set("path", decodedKey);
 
       const forgeResp = await fetch(forgeUrl, {
         headers: { Authorization: `Bearer ${ENV.forgeApiKey}` },

@@ -5,18 +5,23 @@ import { registerGoogleOAuthRoutes } from "./_core/googleOAuth.js";
 import { registerStorageProxy } from "./_core/storageProxy.js";
 import { appRouter } from "./routers.js";
 import { createContext } from "./_core/context.js";
+import { rateLimit, requestId, securityHeaders } from "./_core/security.js";
 
 export function createApp(): Express {
   const app = express();
 
   app.set("trust proxy", 1);
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.use(requestId);
+  app.use(securityHeaders);
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
   registerStorageProxy(app);
   registerGoogleOAuthRoutes(app);
   app.use(
     "/api/trpc",
+    rateLimit("trpc", 120),
     createExpressMiddleware({
       router: appRouter,
       createContext,
