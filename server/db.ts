@@ -330,3 +330,56 @@ export async function getPublicPosts(limit: number, offset: number) {
   return db.select({ id: posts.id, authorId: posts.authorId, body: posts.body, mediaKey: posts.mediaKey, createdAt: posts.createdAt })
     .from(posts).where(eq(posts.visibility, "public")).orderBy(desc(posts.createdAt)).limit(limit).offset(offset);
 }
+
+export async function getFollowingFeed(userId: number, limit: number, offset: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.select({
+    id: videos.id,
+    creatorId: videos.creatorId,
+    title: videos.title,
+    description: videos.description,
+    thumbnailKey: videos.thumbnailKey,
+    durationSeconds: videos.durationSeconds,
+    category: videos.category,
+    tags: videos.tags,
+    hashtags: videos.hashtags,
+    viewsCount: videos.viewsCount,
+    likesCount: videos.likesCount,
+    commentsCount: videos.commentsCount,
+    sharesCount: videos.sharesCount,
+    createdAt: videos.createdAt,
+  }).from(videos)
+    .innerJoin(follows, eq(follows.followingId, videos.creatorId))
+    .where(and(eq(follows.followerId, userId), eq(videos.processingStatus, "ready")))
+    .orderBy(desc(videos.createdAt)).limit(limit).offset(offset);
+}
+
+export async function createGroup(input: { ownerId: number; name: string; slug: string; description?: string; visibility: "public" | "private" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(groups).values(input);
+  const groupId = Number(result[0].insertId);
+  await db.insert(groupMembers).values({ groupId, userId: input.ownerId, role: "owner", status: "active" });
+  return { id: groupId } as const;
+}
+
+export async function joinGroup(groupId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const group = await db.select({ visibility: groups.visibility }).from(groups).where(eq(groups.id, groupId)).limit(1);
+  if (!group[0]) throw new Error("Group not found");
+  const existing = await db.select({ id: groupMembers.id, status: groupMembers.status }).from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId))).limit(1);
+  const status = group[0].visibility === "private" ? "pending" : "active";
+  if (existing[0]) return { status: existing[0].status } as const;
+  await db.insert(groupMembers).values({ groupId, userId, role: "member", status });
+  return { status } as const;
+}
+
+export async function leaveGroup(groupId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId), eq(groupMembers.role, "member")));
+  return { success: true } as const;
+}

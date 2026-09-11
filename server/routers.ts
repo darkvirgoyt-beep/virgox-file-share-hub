@@ -14,12 +14,16 @@ import {
   getPublicFeed,
   getPublicGroups,
   getPublicPosts,
+  getFollowingFeed,
   listVideoComments,
   createComment,
   createPost,
   followUser,
   unfollowUser,
   toggleVideoLike,
+  createGroup,
+  joinGroup,
+  leaveGroup,
   createProfile,
   recordVideoView,
   listOwnedFiles,
@@ -41,6 +45,7 @@ export const appRouter = router({
   feed: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicFeed(input?.limit ?? 30)),
     posts: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ input }) => getPublicPosts(input?.limit ?? 30, input?.offset ?? 0)),
+    following: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ ctx, input }) => getFollowingFeed(ctx.user.id, input?.limit ?? 30, input?.offset ?? 0)),
   }),
   profiles: router({
     me: protectedProcedure.query(({ ctx }) => getProfileByUserId(ctx.user.id)),
@@ -53,6 +58,9 @@ export const appRouter = router({
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),
+    create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(120), slug: z.string().trim().min(3).max(140).regex(/^[a-z0-9-]+$/), description: z.string().trim().max(5000).optional(), visibility: z.enum(["public", "private"]).default("public") })).mutation(({ ctx, input }) => createGroup({ ...input, ownerId: ctx.user.id })),
+    join: protectedProcedure.input(z.object({ groupId: z.number().int().positive() })).mutation(({ ctx, input }) => joinGroup(input.groupId, ctx.user.id)),
+    leave: protectedProcedure.input(z.object({ groupId: z.number().int().positive() })).mutation(({ ctx, input }) => leaveGroup(input.groupId, ctx.user.id)),
   }),
   files: router({
     mine: protectedProcedure.input(z.object({
