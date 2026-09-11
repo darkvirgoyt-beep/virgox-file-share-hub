@@ -11,7 +11,7 @@ import {
   getPublicFeed,
   getPublicGroups,
   recordVideoView,
-} from "./db";
+} from "./db.js";
 
 const visibilitySchema = z.enum(["public", "followers", "private"]);
 
