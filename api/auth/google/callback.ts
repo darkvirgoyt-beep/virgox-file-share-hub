@@ -1,5 +1,19 @@
 import { parse as parseCookieHeader } from "cookie";
-import { COOKIE_NAME, ONE_YEAR_MS } from "../../../shared/const.js";
+import { SignJWT } from "jose";
+
+const COOKIE_NAME = "app_session_id";
+const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
+
+async function createSessionToken(openId: string, name: string): Promise<string> {
+  const secret = process.env.JWT_SECRET ?? "";
+  const appId = process.env.VITE_APP_ID ?? "";
+  if (!secret || !appId) throw new Error("Session signing is not configured");
+  const expiresAt = Math.floor((Date.now() + ONE_YEAR_MS) / 1000);
+  return new SignJWT({ openId, appId, name })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setExpirationTime(expiresAt)
+    .sign(new TextEncoder().encode(secret));
+}
 
 function getCookieOptions() {
   return `Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(ONE_YEAR_MS / 1000)}`;
@@ -110,11 +124,7 @@ export default async function handler(req: any, res: any) {
       // Keep authentication available if the optional profile persistence database is down.
       console.error("[Google OAuth] User persistence unavailable; continuing login", error);
     }
-    const { sdk } = await import("../../../server/_core/sdk.js");
-    const sessionToken = await sdk.createSessionToken(openId, {
-      name: profile.name ?? profile.email,
-      expiresInMs: ONE_YEAR_MS,
-    });
+    const sessionToken = await createSessionToken(openId, profile.name ?? profile.email);
 
     res.setHeader("Set-Cookie", [
       `google_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
