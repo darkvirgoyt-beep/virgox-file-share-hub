@@ -1,5 +1,6 @@
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import {
   groups,
   groupMembers,
@@ -21,10 +22,21 @@ import { ENV } from "./_core/env.js";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+function getPostgresUrl(raw: string) {
+  const url = new URL(raw.replace(/^mysql:/, "postgres:"));
+  if (url.hostname.startsWith("db.") && url.hostname.endsWith(".supabase.co")) {
+    const ref = url.hostname.slice(3, -".supabase.co".length);
+    url.hostname = process.env.SUPABASE_POOLER_HOST ?? "aws-0-ap-south-1.pooler.supabase.com";
+    url.port = process.env.SUPABASE_POOLER_PORT ?? "6543";
+    if (url.username === "postgres") url.username = `postgres.${ref}`;
+  }
+  return url.toString();
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _db = drizzle(postgres(getPostgresUrl(process.env.DATABASE_URL), { max: 5, connect_timeout: 5, ssl: "require" }));
     } catch (error) {
       console.warn("[Database] Failed to connect");
       _db = null;
@@ -64,7 +76,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!values.lastSignedIn) values.lastSignedIn = new Date();
   if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
 
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string): Promise<User | undefined> {
@@ -158,8 +170,8 @@ export async function createVideoDraft(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(videos).values({ ...input, processingStatus: "pending" });
-  return { id: result[0].insertId, processingStatus: "pending" as const };
+  const result = await db.insert(videos).values({ ...input, processingStatus: "pending" }).returning({ id: videos.id });
+  return { id: result[0].id, processingStatus: "pending" as const };
 }
 
 export async function recordVideoView(input: {
@@ -309,8 +321,8 @@ export async function followUser(followerId: number, followingId: number) {
 export async function unfollowUser(followerId: number, followingId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)));
-  if (result[0].affectedRows > 0) {
+  const result = await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId))).returning({ id: follows.id });
+  if (result.length > 0) {
     await db.update(profiles).set({ followingCount: sql`greatest(${profiles.followingCount} - 1, 0)` }).where(eq(profiles.userId, followerId));
     await db.update(profiles).set({ followersCount: sql`greatest(${profiles.followersCount} - 1, 0)` }).where(eq(profiles.userId, followingId));
   }
@@ -337,13 +349,13 @@ export async function toggleVideoLike(userId: number, videoId: number) {
 export async function createComment(input: { authorId: number; videoId?: number; postId?: number; body: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(comments).values(input);
+  const result = await db.insert(comments).values(input).returning({ id: comments.id });
   if (input.videoId) await db.update(videos).set({ commentsCount: sql`${videos.commentsCount} + 1` }).where(eq(videos.id, input.videoId));
   if (input.videoId) {
     const owner = await db.select({ creatorId: videos.creatorId }).from(videos).where(eq(videos.id, input.videoId)).limit(1);
     if (owner[0]) await createNotification({ recipientId: owner[0].creatorId, actorId: input.authorId, type: "comment", resourceType: "video", resourceId: input.videoId, title: "New comment on your video" });
   }
-  return { id: result[0].insertId } as const;
+  return { id: result[0].id } as const;
 }
 
 export async function listVideoComments(videoId: number, limit: number, offset: number) {
@@ -356,8 +368,8 @@ export async function listVideoComments(videoId: number, limit: number, offset: 
 export async function createPost(input: { authorId: number; body: string; visibility: "public" | "followers" | "group" | "private"; groupId?: number; mediaKey?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(posts).values(input);
-  return { id: result[0].insertId } as const;
+  const result = await db.insert(posts).values(input).returning({ id: posts.id });
+  return { id: result[0].id } as const;
 }
 
 export async function getPublicPosts(limit: number, offset: number) {
@@ -394,8 +406,8 @@ export async function getFollowingFeed(userId: number, limit: number, offset: nu
 export async function createGroup(input: { ownerId: number; name: string; slug: string; description?: string; visibility: "public" | "private" }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(groups).values(input);
-  const groupId = Number(result[0].insertId);
+  const result = await db.insert(groups).values(input).returning({ id: groups.id });
+  const groupId = result[0].id;
   await db.insert(groupMembers).values({ groupId, userId: input.ownerId, role: "owner", status: "active" });
   return { id: groupId } as const;
 }

@@ -16,14 +16,16 @@ export default function AuthGate() {
   const auth = useAuth();
 
   useEffect(() => {
+    if (auth.error) console.error("[AuthGate] Account initialization failed", auth.error);
+  }, [auth.error]);
+
+  useEffect(() => {
     if (!auth.loading && auth.user && !auth.needsProfile && window.location.pathname === "/login") setLocation("/");
   }, [auth.loading, auth.user, auth.needsProfile, setLocation]);
 
   if (auth.loading) return <LoadingScreen />;
 
-  if (auth.error) {
-    return <main className="flex min-h-screen items-center justify-center bg-background p-6"><div className="flex max-w-md flex-col items-center gap-4 text-center"><AlertTriangle className="text-destructive" size={32} /><h1 className="text-xl font-semibold">We could not load your account</h1><p className="text-sm text-muted-foreground">Your login may have completed, but the account check failed. Try again without losing your session.</p><p className="max-w-full break-words text-xs text-muted-foreground">{auth.error.message}</p><Button onClick={() => auth.refresh()}>Try again</Button></div></main>;
-  }
+  if (auth.error) return <main className="flex min-h-screen items-center justify-center bg-background p-6"><div className="flex max-w-md flex-col items-center gap-4 text-center"><AlertTriangle className="text-destructive" size={32} /><h1 className="text-xl font-semibold">We could not load your account</h1><p className="text-sm text-muted-foreground">Your session is safe, but account data is temporarily unavailable. Try again in a moment.</p><Button onClick={() => auth.refresh()}>Try again</Button></div></main>;
 
   if (!auth.user) return <Login />;
   if (auth.needsProfile) return <ProfileSetup />;
