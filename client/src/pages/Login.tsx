@@ -24,7 +24,7 @@ export default function Login() {
         <div className="login-form-panel">
           <div className="form-intro"><span className="form-eyebrow">Welcome back</span><h2>Enter your space.</h2><p>One secure sign-in unlocks your files, circles, and creative flow.</p></div>
           <Button className="google-login-button" onClick={startLogin}><span className="google-glyph">G</span> Continue with Google <ArrowRight size={17} /></Button>
-          <p className="login-legal"><LockKeyhole size={13} /> Google OAuth · secure session · no Manus login</p>
+          <p className="login-legal"><LockKeyhole size={13} /> Google OAuth · secure session</p>
           <div className="login-benefits">{benefits.map((benefit) => <div className="login-benefit" key={benefit}><span><Check size={14} /></span>{benefit}</div>)}</div>
           <div className="login-trust"><ShieldCheck size={18} /><div><strong>Built for trust</strong><p>Your account actions stay behind authentication and protected server procedures.</p></div></div>
         </div>
