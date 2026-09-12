@@ -82,7 +82,14 @@ export const appRouter = router({
     sendMessage: protectedProcedure.input(z.object({ userId: z.number().int().positive(), body: z.string().trim().max(5000).optional(), fileId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => sendMessage(ctx.user.id, input.userId, input.body, input.fileId)),
   }),
   feed: router({
-    public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicFeed(input?.limit ?? 30)),
+    public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(async ({ input }) => {
+      const videos = await getPublicFeed(input?.limit ?? 30);
+      return Promise.all(videos.map(async (video) => ({
+        ...video,
+        mediaUrl: await storageGetSignedUrl(video.storageKey),
+        thumbnailUrl: video.thumbnailKey ? await storageGetSignedUrl(video.thumbnailKey) : null,
+      })));
+    }),
     posts: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ input }) => getPublicPosts(input?.limit ?? 30, input?.offset ?? 0)),
     following: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ ctx, input }) => getFollowingFeed(ctx.user.id, input?.limit ?? 30, input?.offset ?? 0)),
   }),

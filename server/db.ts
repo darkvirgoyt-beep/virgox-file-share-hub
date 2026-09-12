@@ -209,6 +209,7 @@ export async function getPublicFeed(limit = 30) {
   return db.select({
     id: videos.id,
     creatorId: videos.creatorId,
+    storageKey: videos.storageKey,
     title: videos.title,
     description: videos.description,
     thumbnailKey: videos.thumbnailKey,
@@ -220,8 +221,12 @@ export async function getPublicFeed(limit = 30) {
     likesCount: videos.likesCount,
     commentsCount: videos.commentsCount,
     sharesCount: videos.sharesCount,
+    creatorName: profiles.displayName,
+    creatorUsername: profiles.username,
+    creatorAvatarUrl: profiles.avatarUrl,
     createdAt: videos.createdAt,
   }).from(videos)
+    .leftJoin(profiles, eq(profiles.userId, videos.creatorId))
     .where(eq(videos.processingStatus, "ready"))
     .orderBy(desc(videos.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
@@ -256,8 +261,8 @@ export async function createVideoDraft(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(videos).values({ ...input, processingStatus: "pending" }).returning({ id: videos.id });
-  return { id: result[0].id, processingStatus: "pending" as const };
+  const result = await db.insert(videos).values({ ...input, processingStatus: "ready" }).returning({ id: videos.id });
+  return { id: result[0].id, processingStatus: "ready" as const };
 }
 
 export async function recordVideoView(input: {
