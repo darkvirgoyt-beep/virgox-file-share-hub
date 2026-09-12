@@ -1,4 +1,4 @@
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import {
@@ -355,6 +355,36 @@ export async function updateStoredFileScanStatus(fileId: number, scanStatus: "pe
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(storedFiles).set({ scanStatus }).where(eq(storedFiles.id, fileId));
+}
+
+export async function searchUsers(query: string, currentUserId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const normalized = query.trim();
+  if (normalized.length < 2) return [];
+  const pattern = `%${normalized}%`;
+  const results = await db.select({
+    id: users.id,
+    name: users.name,
+    username: profiles.username,
+    displayName: profiles.displayName,
+    avatarUrl: profiles.avatarUrl,
+  }).from(users)
+    .leftJoin(profiles, eq(profiles.userId, users.id))
+    .where(and(
+      sql`${users.id} <> ${currentUserId}`,
+      or(
+        ilike(users.name, pattern),
+        ilike(profiles.username, pattern),
+        ilike(profiles.displayName, pattern),
+      ),
+    ))
+    .limit(20);
+  return results.map((result) => ({
+    ...result,
+    username: result.username ?? result.name?.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 32) ?? "member",
+    displayName: result.displayName ?? result.name ?? "VirgoX member",
+  }));
 }
 
 export async function followUser(followerId: number, followingId: number) {

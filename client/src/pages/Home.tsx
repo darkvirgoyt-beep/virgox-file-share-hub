@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
 import {
   ArrowUpRight,
   Bell,
@@ -37,8 +38,6 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
-
 type Section = "home" | "reels" | "discover" | "groups";
 
 type VideoItem = {
@@ -206,15 +205,24 @@ function SectionHeader({ eyebrow, title, action, onAction }: { eyebrow: string; 
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
+  const utils = trpc.useUtils();
   const profileQuery = trpc.profiles.me.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const profileMutation = trpc.profiles.update.useMutation({ onSuccess: () => { profileQuery.refetch(); toast.success("Profile saved."); setShowSettings(false); } });
   const fileMutation = trpc.files.upload.useMutation({ onSuccess: (file) => { toast.success(`Uploaded ${file.sizeBytes} bytes securely.`); setShowUpload(false); setSelectedFile(undefined); } });
   const [section, setSection] = useState<Section>("home");
   const [search, setSearch] = useState("");
+  const [friendQuery, setFriendQuery] = useState("");
+  const [showFriends, setShowFriends] = useState(false);
+  const [addedFriendIds, setAddedFriendIds] = useState<number[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [playing, setPlaying] = useState<VideoItem | null>(null);
   const [followed, setFollowed] = useState<string[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
+  const friendSearch = trpc.profiles.search.useQuery({ query: friendQuery.trim() }, { enabled: showFriends && isAuthenticated && friendQuery.trim().length >= 2, retry: false });
+  const addFriendMutation = trpc.profiles.follow.useMutation({
+    onSuccess: (_result, input) => { setAddedFriendIds((current) => current.includes(input.userId) ? current : [...current, input.userId]); void utils.profiles.search.invalidate(); toast.success("Friend added to your circle."); },
+    onError: (error) => toast.error(error.message || "Could not add this friend."),
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [settingsName, setSettingsName] = useState("");
   const [settingsUsername, setSettingsUsername] = useState("");
@@ -278,6 +286,7 @@ export default function Home() {
 
         <div className="rail-label rail-label-spaced">Your space</div>
         <nav className="secondary-nav">
+          <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span></button>
           <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
           <button className="nav-item" onClick={() => requireAuth("send and manage files")}><FolderOpen size={18} /><span>My files</span></button>
           <button className="nav-item" onClick={() => requireAuth("send messages")}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
@@ -346,6 +355,7 @@ export default function Home() {
 
       {playing && <div className="modal-backdrop" onClick={() => setPlaying(null)}><div className="video-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close icon-button" onClick={() => setPlaying(null)}><X size={19} /></button><div className="modal-media"><img src={playing.image} alt="" /><span className="modal-play"><Play size={28} fill="currentColor" /></span><div className="modal-progress"><span /></div></div><div className="modal-copy"><div><span className="eyebrow">{playing.category}</span><h2>{playing.title}</h2><p>By @{playing.handle} · {playing.likes} likes</p></div><button className="hero-button" onClick={() => toast("Share link copied.")}><Send size={15} /> Share</button></div></div></div>}
 
+      {showFriends && <div className="modal-backdrop" onClick={() => setShowFriends(false)}><div className="friends-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><UserPlus size={13} /> Your circle</span><h2>Add a friend.</h2><p className="drawer-subtitle">Search people who have logged in to VirgoX by name or username.</p></div><button className="icon-button" onClick={() => setShowFriends(false)}><X size={19} /></button></div><div className="friend-search-input"><Search size={16} /><input autoFocus value={friendQuery} onChange={(event) => setFriendQuery(event.target.value)} placeholder="Search name or username…" /><kbd>⌘ K</kbd></div><div className="friend-results">{friendQuery.trim().length < 2 ? <div className="friend-empty"><Users size={22} /><strong>Find real VirgoX members</strong><p>Enter at least two characters to search logged-in accounts.</p></div> : friendSearch.isLoading ? <div className="friend-empty"><strong>Searching members…</strong></div> : friendSearch.error ? <div className="friend-empty"><strong>Session expired</strong><p>Please sign in again to search members.</p></div> : friendSearch.data?.length ? friendSearch.data.map((friend) => { const added = addedFriendIds.includes(friend.id); return <div className="friend-result" key={friend.id}>{friend.avatarUrl ? <Avatar src={friend.avatarUrl} size="sm" /> : <span className="friend-initial">{friend.displayName.slice(0, 1).toUpperCase()}</span>}<span><strong>{friend.displayName}</strong><small>@{friend.username}</small></span><button className={`friend-add-button ${added ? "is-added" : ""}`} disabled={added || addFriendMutation.isPending} onClick={() => addFriendMutation.mutate({ userId: friend.id })}>{added ? <><Check size={14} /> Added</> : <><UserPlus size={14} /> Add</>}</button></div> }) : <div className="friend-empty"><Users size={22} /><strong>No logged-in members found</strong><p>Try their name or username.</p></div>}</div></div></div>}
       {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Upload size={13} /> New upload</span><h2>Upload to your private vault.</h2></div><button className="icon-button" onClick={() => setShowUpload(false)}><X size={19} /></button></div><div className="drop-zone"><div className="drop-icon"><Upload size={24} /></div><strong>{selectedFile?.name ?? "Choose a file from your device"}</strong><p>Private storage · maximum 35 MB</p><input type="file" onChange={(event) => setSelectedFile(event.target.files?.[0])} /><button disabled={!selectedFile || fileMutation.isPending} onClick={submitUpload}><FileUp size={15} /> {fileMutation.isPending ? "Uploading…" : "Upload securely"}</button></div><p className="drawer-foot"><ShieldCheck size={13} /> Private by default</p></div></div>}
       {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Settings2 size={13} /> Account settings</span><h2>Edit your profile.</h2></div><button className="icon-button" onClick={() => setShowSettings(false)}><X size={19} /></button></div><label>Display name<input value={settingsName} onChange={(e) => setSettingsName(e.target.value)} /></label><label>Username<input value={settingsUsername} onChange={(e) => setSettingsUsername(e.target.value)} /></label><label>Bio<textarea value={settingsBio} onChange={(e) => setSettingsBio(e.target.value)} /></label><label>Profile photo<input type="file" accept="image/*" onChange={async (e) => { const file = e.target.files?.[0]; if (file) setSettingsAvatar(await readDataUrl(file)); }} /></label><button className="hero-button" disabled={profileMutation.isPending} onClick={() => profileMutation.mutate({ username: settingsUsername, displayName: settingsName, bio: settingsBio || null, avatarDataUrl: settingsAvatar })}>{profileMutation.isPending ? "Saving…" : "Save profile"}</button></div></div>}
     </div>

@@ -30,6 +30,7 @@ import {
   createProfile,
   updateProfile,
   recordVideoView,
+  searchUsers,
   listOwnedFiles,
   updateStoredFileScanStatus,
 } from "./db.js";
@@ -79,6 +80,7 @@ export const appRouter = router({
     }),
     follow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => followUser(ctx.user.id, input.userId)),
     unfollow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => unfollowUser(ctx.user.id, input.userId)),
+    search: protectedProcedure.input(z.object({ query: z.string().trim().min(2).max(80) })).query(({ ctx, input }) => searchUsers(input.query, ctx.user.id)),
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),
