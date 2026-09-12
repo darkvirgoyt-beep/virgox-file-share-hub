@@ -135,6 +135,14 @@ export default async function handler(req: any, res: any) {
         loginMethod: "google",
         lastSignedIn: new Date(),
       });
+      const user = await db.getUserByOpenId(openId);
+      if (user) {
+        await db.ensureProfileForUser({
+          userId: user.id,
+          email: profile.email,
+          displayName: profile.name ?? profile.email.split("@")[0] ?? "Google user",
+        });
+      }
     } catch (error) {
       // Keep authentication available if the optional profile persistence database is down.
       console.error("[Google OAuth] User persistence unavailable; continuing login", error);

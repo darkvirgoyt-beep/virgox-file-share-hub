@@ -134,6 +134,32 @@ export async function createProfile(input: {
   return getProfileByUserId(input.userId);
 }
 
+export async function ensureProfileForUser(input: {
+  userId: number;
+  email: string;
+  displayName: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable while creating profile");
+  const existing = await getProfileByUserId(input.userId);
+  if (existing) return existing;
+  const base = (input.email.split("@")[0] ?? "user")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "")
+    .slice(0, 24) || "user";
+  let username = base.length >= 3 ? base : `${base}user`;
+  for (let suffix = 1; suffix <= 99; suffix += 1) {
+    const taken = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.username, username)).limit(1);
+    if (!taken[0]) {
+      await db.insert(profiles).values({ userId: input.userId, username, displayName: input.displayName || username });
+      return getProfileByUserId(input.userId);
+    }
+    const suffixText = String(suffix);
+    username = `${base.slice(0, 32 - suffixText.length)}${suffixText}`;
+  }
+  throw new Error("Could not allocate a unique profile username");
+}
+
 export async function updateProfile(input: {
   userId: number;
   username: string;
