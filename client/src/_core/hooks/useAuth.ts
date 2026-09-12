@@ -66,7 +66,9 @@ export function useAuth(options?: UseAuthOptions) {
       user: meQuery.data ?? null,
       profile: profileQuery.data ?? null,
       loading,
-      error: meQuery.error ?? profileQuery.error ?? logoutMutation.error ?? null,
+      // A missing/unavailable profile is a first-login/setup state, not an
+      // authentication failure. Keep the session usable and show ProfileSetup.
+      error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
       needsProfile: Boolean(meQuery.data) && !profileQuery.isLoading && !profileQuery.data,
     };
