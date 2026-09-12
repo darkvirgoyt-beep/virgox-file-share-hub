@@ -131,13 +131,14 @@ export default function Home() {
   const [followed, setFollowed] = useState<string[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
   const friendSearch = trpc.profiles.search.useQuery({ query: friendQuery.trim() }, { enabled: showFriends && isAuthenticated && friendQuery.trim().length >= 2, retry: false });
-  const requestsQuery = trpc.social.requests.useQuery(undefined, { enabled: showFriends && isAuthenticated, retry: false });
+  const requestsQuery = trpc.social.requests.useQuery(undefined, { enabled: isAuthenticated, refetchInterval: 5000, retry: false });
   const friendsQuery = trpc.social.friends.useQuery(undefined, { enabled: showFriends && isAuthenticated, retry: false });
   const notificationsQuery = trpc.notifications.list.useQuery({ limit: 30, offset: 0 }, { enabled: isAuthenticated, refetchInterval: 5000, retry: false });
   const filesQuery = trpc.files.mine.useQuery({ limit: 50, offset: 0 }, { enabled: showFiles && isAuthenticated, retry: false });
   const markNotificationMutation = trpc.notifications.markRead.useMutation({ onSuccess: () => { void notificationsQuery.refetch(); } });
   const unreadNotificationCount = notificationsQuery.data?.filter((notification) => !notification.readAt).length ?? 0;
   const unreadMessageCount = notificationsQuery.data?.filter((notification) => !notification.readAt && notification.type === "message").length ?? 0;
+  const pendingFriendRequestCount = requestsQuery.data?.length ?? 0;
   const messagesQuery = trpc.social.messages.useQuery({ userId: chatFriend?.id ?? 0 }, { enabled: Boolean(chatFriend && isAuthenticated), refetchInterval: 5000 });
   const requestFriendMutation = trpc.social.request.useMutation({
     onSuccess: () => { void requestsQuery.refetch(); toast.success("Friend request sent."); },
@@ -248,7 +249,7 @@ export default function Home() {
 
         <div className="rail-label rail-label-spaced">Your space</div>
         <nav className="secondary-nav">
-          <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span></button>
+          <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span>{pendingFriendRequestCount > 0 && <span className="count-badge">{pendingFriendRequestCount > 99 ? "99+" : pendingFriendRequestCount}</span>}</button>
           <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
           <button className="nav-item" onClick={() => requireAuth("view your files", () => setShowFiles(true))}><FolderOpen size={18} /><span>My files</span></button>
           <button className="nav-item" onClick={() => requireAuth("send messages", () => setShowFriends(true))}><MessageCircle size={18} /><span>Messages</span>{unreadMessageCount > 0 && <span className="count-badge">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</span>}</button>

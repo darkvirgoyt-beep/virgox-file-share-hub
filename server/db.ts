@@ -324,7 +324,17 @@ export async function createNotification(input: {
 }) {
   const db = await getDb();
   if (!db || input.recipientId === input.actorId) return;
-  await db.insert(notifications).values(input);
+  try {
+    await db.insert(notifications).values(input);
+  } catch (error) {
+    // Notification persistence is supplementary; it must not make a friend
+    // request or accepted relationship appear to fail after it was saved.
+    console.error("[Notifications] Could not persist notification", {
+      type: input.type,
+      recipientId: input.recipientId,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
+  }
 }
 
 export async function listNotifications(userId: number, limit: number, offset: number) {
