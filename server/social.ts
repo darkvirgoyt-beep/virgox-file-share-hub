@@ -82,8 +82,13 @@ async function getConversationForMembers(userId: number, otherUserId: number) {
   if (!friendship[0]) throw new Error("You can only message accepted friends");
   const existing = await db.select().from(conversations).where(and(eq(conversations.userAId, pair.userAId), eq(conversations.userBId, pair.userBId))).limit(1);
   if (existing[0]) return existing[0];
-  const created = await db.insert(conversations).values(pair).returning();
-  return created[0];
+  // Opening a chat and sending a message can happen concurrently across
+  // serverless instances. Reuse the unique pair constraint instead of
+  // allowing the losing request to fail with a duplicate-key error.
+  await db.insert(conversations).values(pair).onConflictDoNothing();
+  const conversation = await db.select().from(conversations).where(and(eq(conversations.userAId, pair.userAId), eq(conversations.userBId, pair.userBId))).limit(1);
+  if (!conversation[0]) throw new Error("Conversation could not be initialized");
+  return conversation[0];
 }
 
 export async function listConversationMessages(userId: number, otherUserId: number, limit = 100) {
