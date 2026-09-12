@@ -34,6 +34,14 @@ import {
   listOwnedFiles,
   updateStoredFileScanStatus,
 } from "./db.js";
+import {
+  listConversationMessages,
+  listFriendRequests,
+  listFriends,
+  respondToFriendRequest,
+  sendFriendRequest,
+  sendMessage,
+} from "./social.js";
 
 const visibilitySchema = z.enum(["public", "followers", "private"]);
 
@@ -50,6 +58,14 @@ export const appRouter = router({
   notifications: router({
     list: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50), offset: z.number().int().min(0).max(100_000).default(0) }).optional()).query(({ ctx, input }) => listNotifications(ctx.user.id, input?.limit ?? 50, input?.offset ?? 0)),
     markRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(({ ctx, input }) => markNotificationRead(ctx.user.id, input.notificationId)),
+  }),
+  social: router({
+    requests: protectedProcedure.query(({ ctx }) => listFriendRequests(ctx.user.id)),
+    friends: protectedProcedure.query(({ ctx }) => listFriends(ctx.user.id)),
+    request: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => sendFriendRequest(ctx.user.id, input.userId)),
+    respond: protectedProcedure.input(z.object({ requestId: z.number().int().positive(), status: z.enum(["accepted", "declined"]) })).mutation(({ ctx, input }) => respondToFriendRequest(ctx.user.id, input.requestId, input.status)),
+    messages: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ ctx, input }) => listConversationMessages(ctx.user.id, input.userId)),
+    sendMessage: protectedProcedure.input(z.object({ userId: z.number().int().positive(), body: z.string().trim().max(5000).optional(), fileId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => sendMessage(ctx.user.id, input.userId, input.body, input.fileId)),
   }),
   feed: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicFeed(input?.limit ?? 30)),

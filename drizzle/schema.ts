@@ -120,6 +120,31 @@ export const storedFiles = pgTable("stored_files", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const friendRequests = pgTable("friend_requests", {
+  id: serial("id").primaryKey(),
+  requesterId: integer("requesterId").notNull(),
+  recipientId: integer("recipientId").notNull(),
+  status: varchar("status", { length: 24 }).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  respondedAt: timestamp("respondedAt"),
+}, (table) => ({ requestPair: unique("friend_request_pair").on(table.requesterId, table.recipientId) }));
+
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  userAId: integer("userAId").notNull(),
+  userBId: integer("userBId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({ conversationPair: unique("conversation_pair").on(table.userAId, table.userBId) }));
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversationId").notNull(),
+  senderId: integer("senderId").notNull(),
+  body: text("body"),
+  fileId: integer("fileId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const reports = pgTable("reports", {
   id: serial("id").primaryKey(),
   reporterId: integer("reporterId").notNull(),
@@ -175,3 +200,6 @@ export type Profile = typeof profiles.$inferSelect;
 export type Video = typeof videos.$inferSelect;
 export type Group = typeof groups.$inferSelect;
 export type StoredFile = typeof storedFiles.$inferSelect;
+export type FriendRequest = typeof friendRequests.$inferSelect;
+export type Conversation = typeof conversations.$inferSelect;
+export type Message = typeof messages.$inferSelect;

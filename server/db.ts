@@ -9,7 +9,10 @@ import {
   reports,
   auditLogs,
   comments,
+  conversations,
   follows,
+  friendRequests,
+  messages,
   posts,
   notifications,
   storedFiles,
@@ -44,6 +47,9 @@ export async function getDb() {
       _schemaReady = (async () => {
         await sqlClient`CREATE TABLE IF NOT EXISTS users (id serial PRIMARY KEY, "openId" varchar(64) NOT NULL UNIQUE, name text, email varchar(320), "loginMethod" varchar(64), role varchar(64) NOT NULL DEFAULT 'user', "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now(), "lastSignedIn" timestamptz NOT NULL DEFAULT now())`;
         await sqlClient`CREATE TABLE IF NOT EXISTS profiles (id serial PRIMARY KEY, "userId" integer NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, username varchar(32) NOT NULL UNIQUE, "displayName" varchar(120) NOT NULL, bio text, "avatarUrl" text, "coverImageUrl" text, "followersCount" integer NOT NULL DEFAULT 0, "followingCount" integer NOT NULL DEFAULT 0, "createdAt" timestamptz NOT NULL DEFAULT now(), "updatedAt" timestamptz NOT NULL DEFAULT now())`;
+        await sqlClient`CREATE TABLE IF NOT EXISTS friend_requests (id serial PRIMARY KEY, "requesterId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "recipientId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, status varchar(24) NOT NULL DEFAULT 'pending', "createdAt" timestamptz NOT NULL DEFAULT now(), "respondedAt" timestamptz, CONSTRAINT friend_request_pair UNIQUE ("requesterId", "recipientId"))`;
+        await sqlClient`CREATE TABLE IF NOT EXISTS conversations (id serial PRIMARY KEY, "userAId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "userBId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "createdAt" timestamptz NOT NULL DEFAULT now(), CONSTRAINT conversation_pair UNIQUE ("userAId", "userBId"))`;
+        await sqlClient`CREATE TABLE IF NOT EXISTS messages (id serial PRIMARY KEY, "conversationId" integer NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, "senderId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, body text, "fileId" integer, "createdAt" timestamptz NOT NULL DEFAULT now())`;
       })();
       await _schemaReady;
     } catch (error) {
