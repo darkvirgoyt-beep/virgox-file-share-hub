@@ -61,7 +61,10 @@ export function useAuth(options?: UseAuthOptions) {
       // localStorage is only a convenience cache and must not block rendering.
     }
 
-    const loading = meQuery.isLoading || profileQuery.isLoading || logoutMutation.isPending;
+    // Session authentication is the only blocking check. Profile lookup may
+    // be slow or absent on first login, so it must never trap the whole app
+    // on the secure-session spinner.
+    const loading = meQuery.isLoading || logoutMutation.isPending;
     return {
       user: meQuery.data ?? null,
       profile: profileQuery.data ?? null,
@@ -70,7 +73,7 @@ export function useAuth(options?: UseAuthOptions) {
       // authentication failure. Keep the session usable and show ProfileSetup.
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
-      needsProfile: Boolean(meQuery.data) && !profileQuery.isLoading && !profileQuery.data,
+      needsProfile: Boolean(meQuery.data) && !profileQuery.data,
     };
   }, [
     meQuery.data,
@@ -84,7 +87,7 @@ export function useAuth(options?: UseAuthOptions) {
   ]);
 
   useEffect(() => {
-    if (!redirectOnUnauthenticated || meQuery.isLoading || profileQuery.isLoading || logoutMutation.isPending) return;
+    if (!redirectOnUnauthenticated || meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user || typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;
     if (redirectPath) window.location.href = redirectPath;
