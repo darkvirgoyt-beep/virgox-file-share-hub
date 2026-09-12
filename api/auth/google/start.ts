@@ -47,7 +47,6 @@ export default function handler(req: any, res: any) {
     response_type: "code",
     scope: "openid email profile",
     state,
-    prompt: "select_account",
   });
 
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
