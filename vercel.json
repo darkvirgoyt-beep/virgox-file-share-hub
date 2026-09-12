@@ -4,6 +4,7 @@
   "buildCommand": "pnpm check && pnpm run build",
   "outputDirectory": "dist/public",
   "cleanUrls": true,
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
