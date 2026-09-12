@@ -10,7 +10,7 @@ export default function Login() {
       <div className="login-orbit orbit-one" />
       <div className="login-orbit orbit-two" />
       <section className="login-card" aria-labelledby="login-title">
-        <div className="login-brand"><span className="brand-mark">V</span><span><strong>VirgoX</strong><small>File Share Hub</small></span></div>
+        <div className="login-brand"><img className="brand-avatar" src="/virgox-avatar.png" alt="VirgoX" /><span><strong>VirgoX</strong><small>File Share Hub</small></span></div>
         <div className="login-kicker"><Sparkles size={14} /> Your space, protected</div>
         <h1 id="login-title">Make room for your best signal.</h1>
         <p className="login-copy">Sign in with your Google account to send, share, follow, upload, and build inside VirgoX.</p>

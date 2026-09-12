@@ -266,7 +266,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className={`side-rail ${mobileNav ? "mobile-open" : ""}`}>
         <div className="brand-lockup">
-          <div className="brand-mark"><span>V</span><i /></div>
+          <img className="brand-avatar" src="/virgox-avatar.png" alt="VirgoX" />
           <div><strong>VirgoX</strong><small>File Share Hub</small></div>
         </div>
         <button className="mobile-close icon-button" onClick={() => setMobileNav(false)}><X size={19} /></button>
