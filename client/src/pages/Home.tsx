@@ -136,6 +136,8 @@ export default function Home() {
   const notificationsQuery = trpc.notifications.list.useQuery({ limit: 30, offset: 0 }, { enabled: isAuthenticated, refetchInterval: 5000, retry: false });
   const filesQuery = trpc.files.mine.useQuery({ limit: 50, offset: 0 }, { enabled: showFiles && isAuthenticated, retry: false });
   const markNotificationMutation = trpc.notifications.markRead.useMutation({ onSuccess: () => { void notificationsQuery.refetch(); } });
+  const unreadNotificationCount = notificationsQuery.data?.filter((notification) => !notification.readAt).length ?? 0;
+  const unreadMessageCount = notificationsQuery.data?.filter((notification) => !notification.readAt && notification.type === "message").length ?? 0;
   const messagesQuery = trpc.social.messages.useQuery({ userId: chatFriend?.id ?? 0 }, { enabled: Boolean(chatFriend && isAuthenticated), refetchInterval: 5000 });
   const requestFriendMutation = trpc.social.request.useMutation({
     onSuccess: () => { void requestsQuery.refetch(); toast.success("Friend request sent."); },
@@ -249,7 +251,7 @@ export default function Home() {
           <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span></button>
           <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
           <button className="nav-item" onClick={() => requireAuth("view your files", () => setShowFiles(true))}><FolderOpen size={18} /><span>My files</span></button>
-          <button className="nav-item" onClick={() => requireAuth("send messages", () => setShowFriends(true))}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
+          <button className="nav-item" onClick={() => requireAuth("send messages", () => setShowFriends(true))}><MessageCircle size={18} /><span>Messages</span>{unreadMessageCount > 0 && <span className="count-badge">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</span>}</button>
         </nav>
 
         <div className="rail-spacer" />
@@ -276,7 +278,7 @@ export default function Home() {
           <div className="mobile-title"><button className="icon-button" onClick={() => setMobileNav(true)}><Menu size={20} /></button><strong>VirgoX</strong></div>
           <div className="search-wrap"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search creators, videos, groups..." /><kbd>⌘ K</kbd></div>
           <div className="top-actions">
-            <button className="icon-button notification-button" onClick={() => requireAuth("view notifications", () => setShowNotifications(true))}><Bell size={18} />{notificationsQuery.data?.some((notification) => !notification.readAt) && <i />}</button>
+            <button className="icon-button notification-button" aria-label={unreadNotificationCount ? `${unreadNotificationCount} unread notifications` : "Notifications"} onClick={() => requireAuth("view notifications", () => setShowNotifications(true))}><Bell size={18} />{unreadNotificationCount > 0 && <i />}</button>
             <button className="create-button" onClick={() => requireAuth("create uploads and posts", () => setShowUpload(true))}><Plus size={17} /> Create</button>
             {isAuthenticated ? <button className="top-avatar" onClick={() => setShowSettings(true)} title="Open profile settings">{profileQuery.data?.avatarUrl ? <img className="avatar avatar-sm" src={`/manus-storage/${profileQuery.data.avatarUrl}`} alt="" /> : <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" />}</button> : <button className="sign-in-button" onClick={() => startLogin()}>Sign in</button>}
           </div>
