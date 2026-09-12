@@ -28,6 +28,7 @@ import {
   listNotifications,
   markNotificationRead,
   createProfile,
+  ensureProfileForUser,
   updateProfile,
   recordVideoView,
   searchUsers,
@@ -48,7 +49,20 @@ const visibilitySchema = z.enum(["public", "followers", "private"]);
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(async (opts) => {
+      if (opts.ctx.user) {
+        try {
+          await ensureProfileForUser({
+            userId: opts.ctx.user.id,
+            email: opts.ctx.user.email ?? `${opts.ctx.user.openId}@user.invalid`,
+            displayName: opts.ctx.user.name ?? "VirgoX member",
+          });
+        } catch (error) {
+          console.error("[Auth] Could not initialize profile", error);
+        }
+      }
+      return opts.ctx.user;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
