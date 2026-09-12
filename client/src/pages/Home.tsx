@@ -38,6 +38,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 type Section = "home" | "reels" | "discover" | "groups";
 
 type VideoItem = {
@@ -111,6 +112,7 @@ function SectionHeader({ eyebrow, title, action, onAction }: { eyebrow: string; 
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
+  const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const profileQuery = trpc.profiles.me.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const feedQuery = trpc.feed.public.useQuery({ limit: 50 }, { retry: false, refetchInterval: 15000 });
@@ -252,7 +254,7 @@ export default function Home() {
           <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span>{pendingFriendRequestCount > 0 && <span className="count-badge">{pendingFriendRequestCount > 99 ? "99+" : pendingFriendRequestCount}</span>}</button>
           <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
           <button className="nav-item" onClick={() => requireAuth("view your files", () => setShowFiles(true))}><FolderOpen size={18} /><span>My files</span></button>
-          <button className="nav-item" onClick={() => requireAuth("send messages", () => setShowFriends(true))}><MessageCircle size={18} /><span>Messages</span>{unreadMessageCount > 0 && <span className="count-badge">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</span>}</button>
+          <button className="nav-item" onClick={() => requireAuth("send messages", () => setLocation("/messages"))}><MessageCircle size={18} /><span>Messages</span>{unreadMessageCount > 0 && <span className="count-badge">{unreadMessageCount > 99 ? "99+" : unreadMessageCount}</span>}</button>
         </nav>
 
         <div className="rail-spacer" />
