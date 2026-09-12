@@ -50,6 +50,7 @@ export async function getDb() {
         await sqlClient`CREATE TABLE IF NOT EXISTS friend_requests (id serial PRIMARY KEY, "requesterId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "recipientId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, status varchar(24) NOT NULL DEFAULT 'pending', "createdAt" timestamptz NOT NULL DEFAULT now(), "respondedAt" timestamptz, CONSTRAINT friend_request_pair UNIQUE ("requesterId", "recipientId"))`;
         await sqlClient`CREATE TABLE IF NOT EXISTS conversations (id serial PRIMARY KEY, "userAId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "userBId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "createdAt" timestamptz NOT NULL DEFAULT now(), CONSTRAINT conversation_pair UNIQUE ("userAId", "userBId"))`;
         await sqlClient`CREATE TABLE IF NOT EXISTS messages (id serial PRIMARY KEY, "conversationId" integer NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, "senderId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, body text, "fileId" integer, "createdAt" timestamptz NOT NULL DEFAULT now())`;
+        await sqlClient`CREATE TABLE IF NOT EXISTS notifications (id serial PRIMARY KEY, "recipientId" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE, "actorId" integer REFERENCES users(id) ON DELETE SET NULL, type varchar(40) NOT NULL, "resourceType" varchar(40), "resourceId" integer, title varchar(180) NOT NULL, body text, "readAt" timestamptz, "createdAt" timestamptz NOT NULL DEFAULT now())`;
       })();
       await _schemaReady;
     } catch (error) {
