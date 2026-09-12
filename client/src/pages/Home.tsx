@@ -249,7 +249,7 @@ export default function Home() {
           <button className="nav-item" onClick={() => requireAuth("find and add friends", () => setShowFriends(true))}><UserPlus size={18} /><span>Add friends</span></button>
           <button className="nav-item" onClick={() => requireAuth("view saved videos")}><Bookmark size={18} /><span>Saved</span></button>
           <button className="nav-item" onClick={() => requireAuth("view your files", () => setShowFiles(true))}><FolderOpen size={18} /><span>My files</span></button>
-          <button className="nav-item" onClick={() => requireAuth("send messages")}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
+          <button className="nav-item" onClick={() => requireAuth("send messages", () => setShowFriends(true))}><MessageCircle size={18} /><span>Messages</span><span className="count-badge">3</span></button>
         </nav>
 
         <div className="rail-spacer" />
