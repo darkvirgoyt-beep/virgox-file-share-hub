@@ -23,7 +23,7 @@ export default function ProfileSetup() {
   return (
     <main className="login-page">
       <section className="login-card" aria-labelledby="profile-setup-title">
-        <div className="login-brand"><span className="brand-mark">V</span><span><strong>VirgoX</strong><small>File Share Hub</small></span></div>
+        <div className="login-brand"><img className="brand-avatar" src="/virgox-avatar.png" alt="VirgoX" /><span><strong>VirgoX</strong><small>File Share Hub</small></span></div>
         <div className="login-kicker">One last step</div>
         <h1 id="profile-setup-title">Set up your profile.</h1>
         <p className="login-copy">Choose the name people will see and a unique username for your file-sharing space.</p>
