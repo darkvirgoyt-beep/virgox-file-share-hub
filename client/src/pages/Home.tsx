@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import {
@@ -37,6 +37,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 type Section = "home" | "reels" | "discover" | "groups";
 
@@ -205,12 +206,40 @@ function SectionHeader({ eyebrow, title, action, onAction }: { eyebrow: string; 
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
+  const profileQuery = trpc.profiles.me.useQuery(undefined, { enabled: isAuthenticated, retry: false });
+  const profileMutation = trpc.profiles.update.useMutation({ onSuccess: () => { profileQuery.refetch(); toast.success("Profile saved."); setShowSettings(false); } });
+  const fileMutation = trpc.files.upload.useMutation({ onSuccess: (file) => { toast.success(`Uploaded ${file.sizeBytes} bytes securely.`); setShowUpload(false); setSelectedFile(undefined); } });
   const [section, setSection] = useState<Section>("home");
   const [search, setSearch] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [playing, setPlaying] = useState<VideoItem | null>(null);
   const [followed, setFollowed] = useState<string[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsUsername, setSettingsUsername] = useState("");
+  const [settingsBio, setSettingsBio] = useState("");
+  const [settingsAvatar, setSettingsAvatar] = useState<string>();
+  const [selectedFile, setSelectedFile] = useState<File>();
+
+  useEffect(() => {
+    if (!profileQuery.data) return;
+    setSettingsName(profileQuery.data.displayName);
+    setSettingsUsername(profileQuery.data.username);
+    setSettingsBio(profileQuery.data.bio ?? "");
+  }, [profileQuery.data]);
+
+  const readDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+
+  const submitUpload = async () => {
+    if (!selectedFile) return toast.error("Choose a file first.");
+    fileMutation.mutate({ name: selectedFile.name, mimeType: selectedFile.type || "application/octet-stream", dataUrl: await readDataUrl(selectedFile) });
+  };
 
   const filteredVideos = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -262,8 +291,8 @@ export default function Home() {
           <button onClick={() => requireAuth("open your secure space")}><Crown size={14} /> {isAuthenticated ? "Upgrade space" : "Sign in to unlock"}</button>
         </div>
         <div className="rail-footer">
-          <button className={`user-row ${!isAuthenticated ? "user-row-guest" : ""}`} onClick={() => isAuthenticated ? toast("Profile settings coming soon.") : startLogin()}>
-            {isAuthenticated ? <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" /> : <span className="guest-avatar"><UserPlus size={16} /></span>}
+          <button className={`user-row ${!isAuthenticated ? "user-row-guest" : ""}`} onClick={() => isAuthenticated ? setShowSettings(true) : startLogin()}>
+            {isAuthenticated && profileQuery.data?.avatarUrl ? <img className="avatar avatar-sm" src={`/manus-storage/${profileQuery.data.avatarUrl}`} alt="" /> : isAuthenticated ? <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" /> : <span className="guest-avatar"><UserPlus size={16} /></span>}
             <span><strong>{loading ? "Checking session…" : user?.name || "Guest visitor"}</strong><small>{loading ? "Please wait" : isAuthenticated ? `@${user?.name?.toLowerCase().replace(/\s+/g, "") || "virgoyt"}` : "Sign in to your account"}</small></span>
             {isAuthenticated ? <Settings2 size={16} /> : <ArrowUpRight size={16} />}
           </button>
@@ -280,7 +309,7 @@ export default function Home() {
           <div className="top-actions">
             <button className="icon-button notification-button" onClick={() => toast("You are all caught up.")}><Bell size={18} /><i /></button>
             <button className="create-button" onClick={() => requireAuth("create uploads and posts", () => setShowUpload(true))}><Plus size={17} /> Create</button>
-            {isAuthenticated ? <button className="top-avatar" onClick={() => logout()} title="Sign out"><Avatar src="https://i.pravatar.cc/100?img=13" size="sm" /></button> : <button className="sign-in-button" onClick={() => startLogin()}>Sign in</button>}
+            {isAuthenticated ? <button className="top-avatar" onClick={() => setShowSettings(true)} title="Open profile settings">{profileQuery.data?.avatarUrl ? <img className="avatar avatar-sm" src={`/manus-storage/${profileQuery.data.avatarUrl}`} alt="" /> : <Avatar src="https://i.pravatar.cc/100?img=13" size="sm" />}</button> : <button className="sign-in-button" onClick={() => startLogin()}>Sign in</button>}
           </div>
         </header>
 
@@ -317,7 +346,8 @@ export default function Home() {
 
       {playing && <div className="modal-backdrop" onClick={() => setPlaying(null)}><div className="video-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close icon-button" onClick={() => setPlaying(null)}><X size={19} /></button><div className="modal-media"><img src={playing.image} alt="" /><span className="modal-play"><Play size={28} fill="currentColor" /></span><div className="modal-progress"><span /></div></div><div className="modal-copy"><div><span className="eyebrow">{playing.category}</span><h2>{playing.title}</h2><p>By @{playing.handle} · {playing.likes} likes</p></div><button className="hero-button" onClick={() => toast("Share link copied.")}><Send size={15} /> Share</button></div></div></div>}
 
-      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Upload size={13} /> New upload</span><h2>Put something good into the world.</h2></div><button className="icon-button" onClick={() => setShowUpload(false)}><X size={19} /></button></div><div className="drop-zone"><div className="drop-icon"><Upload size={24} /></div><strong>Drop a video, photo, or file here</strong><p>Up to 3 minutes for reels · high quality preserved</p><button onClick={() => requireAuth("upload files", () => toast("File picker will connect to secure storage next."))}><FileUp size={15} /> Choose from device</button></div><div className="upload-options"><button onClick={() => requireAuth("upload videos", () => toast("Reel composer selected."))}><Video size={18} /><span><strong>Short video</strong><small>Reels up to 3 minutes</small></span><ArrowUpRight size={15} /></button><button onClick={() => requireAuth("send files", () => toast("File transfer composer selected."))}><FolderOpen size={18} /><span><strong>Secure file share</strong><small>Send files with access controls</small></span><ArrowUpRight size={15} /></button><button onClick={() => requireAuth("publish posts", () => toast("Post composer selected."))}><ImageIcon size={18} /><span><strong>Photo or post</strong><small>Share an update with your circles</small></span><ArrowUpRight size={15} /></button></div><p className="drawer-foot"><ShieldCheck size={13} /> Scanned before processing · private by default</p></div></div>}
+      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Upload size={13} /> New upload</span><h2>Upload to your private vault.</h2></div><button className="icon-button" onClick={() => setShowUpload(false)}><X size={19} /></button></div><div className="drop-zone"><div className="drop-icon"><Upload size={24} /></div><strong>{selectedFile?.name ?? "Choose a file from your device"}</strong><p>Private storage · maximum 35 MB</p><input type="file" onChange={(event) => setSelectedFile(event.target.files?.[0])} /><button disabled={!selectedFile || fileMutation.isPending} onClick={submitUpload}><FileUp size={15} /> {fileMutation.isPending ? "Uploading…" : "Upload securely"}</button></div><p className="drawer-foot"><ShieldCheck size={13} /> Private by default</p></div></div>}
+      {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><div className="upload-drawer" onClick={(event) => event.stopPropagation()}><div className="drawer-head"><div><span className="eyebrow"><Settings2 size={13} /> Account settings</span><h2>Edit your profile.</h2></div><button className="icon-button" onClick={() => setShowSettings(false)}><X size={19} /></button></div><label>Display name<input value={settingsName} onChange={(e) => setSettingsName(e.target.value)} /></label><label>Username<input value={settingsUsername} onChange={(e) => setSettingsUsername(e.target.value)} /></label><label>Bio<textarea value={settingsBio} onChange={(e) => setSettingsBio(e.target.value)} /></label><label>Profile photo<input type="file" accept="image/*" onChange={async (e) => { const file = e.target.files?.[0]; if (file) setSettingsAvatar(await readDataUrl(file)); }} /></label><button className="hero-button" disabled={profileMutation.isPending} onClick={() => profileMutation.mutate({ username: settingsUsername, displayName: settingsName, bio: settingsBio || null, avatarDataUrl: settingsAvatar })}>{profileMutation.isPending ? "Saving…" : "Save profile"}</button></div></div>}
     </div>
   );
 }

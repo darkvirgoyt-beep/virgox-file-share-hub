@@ -4,9 +4,10 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { storageGetSignedUrl } from "./storage.js";
+import { storageGetSignedUrl, storagePut } from "./storage.js";
 import {
   createReport,
+  createStoredFile,
   canAccessStoredFile,
   createAuditLog,
   createVideoDraft,
@@ -27,6 +28,7 @@ import {
   listNotifications,
   markNotificationRead,
   createProfile,
+  updateProfile,
   recordVideoView,
   listOwnedFiles,
   updateStoredFileScanStatus,
@@ -59,6 +61,22 @@ export const appRouter = router({
       username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
       displayName: z.string().trim().min(1).max(120),
     })).mutation(({ ctx, input }) => createProfile({ ...input, userId: ctx.user.id })),
+    update: protectedProcedure.input(z.object({
+      username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_]+$/),
+      displayName: z.string().trim().min(1).max(120),
+      bio: z.string().trim().max(1000).nullable().optional(),
+      avatarDataUrl: z.string().startsWith("data:").max(8_000_000).optional(),
+      coverDataUrl: z.string().startsWith("data:").max(12_000_000).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const uploadImage = async (dataUrl: string | undefined, name: string) => {
+        if (!dataUrl) return undefined;
+        const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid image data" });
+        const result = await storagePut(`profiles/${ctx.user.id}/${name}`, Buffer.from(match[2], "base64"), match[1]);
+        return result.key;
+      };
+      return updateProfile({ userId: ctx.user.id, username: input.username, displayName: input.displayName, bio: input.bio, avatarUrl: await uploadImage(input.avatarDataUrl, "avatar"), coverImageUrl: await uploadImage(input.coverDataUrl, "cover") });
+    }),
     follow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => followUser(ctx.user.id, input.userId)),
     unfollow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => unfollowUser(ctx.user.id, input.userId)),
   }),
@@ -69,6 +87,19 @@ export const appRouter = router({
     leave: protectedProcedure.input(z.object({ groupId: z.number().int().positive() })).mutation(({ ctx, input }) => leaveGroup(input.groupId, ctx.user.id)),
   }),
   files: router({
+    upload: protectedProcedure.input(z.object({
+      name: z.string().trim().min(1).max(255),
+      mimeType: z.string().trim().min(1).max(120),
+      dataUrl: z.string().startsWith("data:").max(48_000_000),
+    })).mutation(async ({ ctx, input }) => {
+      const match = input.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match || match[1] !== input.mimeType) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file data" });
+      const buffer = Buffer.from(match[2], "base64");
+      if (buffer.byteLength > 35 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "Files must be 35 MB or smaller" });
+      const result = await storagePut(`files/${ctx.user.id}/${input.name}`, buffer, input.mimeType);
+      const created = await createStoredFile({ ownerId: ctx.user.id, originalName: input.name, storageKey: result.key, mimeType: input.mimeType, sizeBytes: buffer.byteLength });
+      return { ...result, id: created.id, sizeBytes: buffer.byteLength };
+    }),
     mine: protectedProcedure.input(z.object({
       limit: z.number().int().min(1).max(100).default(50),
       offset: z.number().int().min(0).max(100_000).default(0),

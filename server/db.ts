@@ -128,6 +128,49 @@ export async function createProfile(input: {
   return getProfileByUserId(input.userId);
 }
 
+export async function updateProfile(input: {
+  userId: number;
+  username: string;
+  displayName: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  coverImageUrl?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable while updating profile");
+  const existing = await getProfileByUserId(input.userId);
+  const values = {
+    username: input.username,
+    displayName: input.displayName,
+    bio: input.bio ?? null,
+    ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+    ...(input.coverImageUrl !== undefined ? { coverImageUrl: input.coverImageUrl } : {}),
+  };
+  if (existing) {
+    await db.update(profiles).set(values).where(eq(profiles.userId, input.userId));
+  } else {
+    await db.insert(profiles).values({ userId: input.userId, ...values });
+  }
+  return getProfileByUserId(input.userId);
+}
+
+export async function createStoredFile(input: {
+  ownerId: number;
+  originalName: string;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable while saving file metadata");
+  const result = await db.insert(storedFiles).values({
+    ...input,
+    scanStatus: "clean",
+    visibility: "private",
+  }).returning({ id: storedFiles.id });
+  return result[0];
+}
+
 export async function getPublicFeed(limit = 30) {
   const db = await getDb();
   if (!db) return [];
