@@ -95,22 +95,38 @@ export async function listConversationMessages(userId: number, otherUserId: numb
   const conversation = await getConversationForMembers(userId, otherUserId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const rows = await db.select({
-    id: messages.id,
-    senderId: messages.senderId,
-    body: messages.body,
-    fileId: messages.fileId,
-    fileName: storedFiles.originalName,
-    createdAt: messages.createdAt,
-  }).from(messages)
-    .leftJoin(storedFiles, eq(storedFiles.id, messages.fileId))
-    .where(eq(messages.conversationId, conversation.id))
-    .orderBy(asc(messages.createdAt)).limit(Math.min(Math.max(limit, 1), 200));
-  return Promise.all(rows.map(async (row) => {
-    if (!row.fileId) return { ...row, fileUrl: null };
-    const file = await db.select({ storageKey: storedFiles.storageKey }).from(storedFiles).where(eq(storedFiles.id, row.fileId)).limit(1);
-    return { ...row, fileUrl: file[0] ? await storageGetSignedUrl(file[0].storageKey) : null };
-  }));
+  const safeLimit = Math.min(Math.max(limit, 1), 200);
+  try {
+    const rows = await db.select({
+      id: messages.id,
+      senderId: messages.senderId,
+      body: messages.body,
+      fileId: messages.fileId,
+      fileName: storedFiles.originalName,
+      createdAt: messages.createdAt,
+    }).from(messages)
+      .leftJoin(storedFiles, eq(storedFiles.id, messages.fileId))
+      .where(eq(messages.conversationId, conversation.id))
+      .orderBy(asc(messages.createdAt)).limit(safeLimit);
+    return Promise.all(rows.map(async (row) => {
+      if (!row.fileId) return { ...row, fileUrl: null };
+      const file = await db.select({ storageKey: storedFiles.storageKey }).from(storedFiles).where(eq(storedFiles.id, row.fileId)).limit(1);
+      return { ...row, fileUrl: file[0] ? await storageGetSignedUrl(file[0].storageKey) : null };
+    }));
+  } catch (error) {
+    console.warn("[Messages] Falling back to text-only conversation query", error instanceof Error ? error.message : "unknown error");
+    return db.select({
+      id: messages.id,
+      senderId: messages.senderId,
+      body: messages.body,
+      fileId: messages.fileId,
+      fileName: sql<string | null>`null`,
+      fileUrl: sql<string | null>`null`,
+      createdAt: messages.createdAt,
+    }).from(messages)
+      .where(eq(messages.conversationId, conversation.id))
+      .orderBy(asc(messages.createdAt)).limit(safeLimit);
+  }
 }
 
 export async function sendMessage(userId: number, otherUserId: number, body?: string, fileId?: number) {
