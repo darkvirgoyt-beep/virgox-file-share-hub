@@ -14,8 +14,11 @@ export function createApp(): Express {
   app.disable("x-powered-by");
   app.use(requestId);
   app.use(securityHeaders);
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ limit: "1mb", extended: true }));
+  // Large files are uploaded directly to storage via signed URLs. Keep enough
+  // room for profile images and other metadata without routing file bytes
+  // through the serverless function.
+  app.use(express.json({ limit: "8mb" }));
+  app.use(express.urlencoded({ limit: "8mb", extended: true }));
 
   registerStorageProxy(app);
   registerGoogleOAuthRoutes(app);

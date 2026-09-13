@@ -4,7 +4,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc.js";
-import { storageGetSignedUrl, storagePut } from "./storage.js";
+import { storageGetSignedUrl, storagePresignPut, storagePut } from "./storage.js";
 import {
   createReport,
   createStoredFile,
@@ -138,6 +138,15 @@ export const appRouter = router({
     leave: protectedProcedure.input(z.object({ groupId: z.number().int().positive() })).mutation(({ ctx, input }) => leaveGroup(input.groupId, ctx.user.id)),
   }),
   files: router({
+    presign: protectedProcedure.input(z.object({ name: z.string().trim().min(1).max(255), mimeType: z.string().trim().min(1).max(120), sizeBytes: z.number().int().positive().max(35 * 1024 * 1024) })).mutation(async ({ ctx, input }) => {
+      const result = await storagePresignPut(`files/${ctx.user.id}/${input.name}`);
+      return { ...result, name: input.name, mimeType: input.mimeType, sizeBytes: input.sizeBytes };
+    }),
+    complete: protectedProcedure.input(z.object({ name: z.string().trim().min(1).max(255), mimeType: z.string().trim().min(1).max(120), storageKey: z.string().trim().min(1).max(500), sizeBytes: z.number().int().positive().max(35 * 1024 * 1024) })).mutation(async ({ ctx, input }) => {
+      if (!input.storageKey.startsWith(`files/${ctx.user.id}/`)) throw new TRPCError({ code: "FORBIDDEN", message: "Invalid storage ownership" });
+      const created = await createStoredFile({ ownerId: ctx.user.id, originalName: input.name, storageKey: input.storageKey, mimeType: input.mimeType, sizeBytes: input.sizeBytes });
+      return { id: created.id, key: input.storageKey, sizeBytes: input.sizeBytes };
+    }),
     upload: protectedProcedure.input(z.object({
       name: z.string().trim().min(1).max(255),
       mimeType: z.string().trim().min(1).max(120),

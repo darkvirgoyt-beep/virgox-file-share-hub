@@ -16,6 +16,27 @@ function hasSupabase() { return Boolean(ENV.supabaseUrl && ENV.supabaseServiceRo
 function supabaseHeaders() { return { Authorization: `Bearer ${ENV.supabaseServiceRoleKey}`, apikey: ENV.supabaseServiceRoleKey }; }
 function bucketUrl(path: string) { return `${ENV.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${ENV.supabaseStorageBucket}/${path}`; }
 
+export async function storagePresignPut(relKey: string): Promise<{ key: string; uploadUrl: string }> {
+  const key = appendHashSuffix(normalizeKey(relKey));
+  if (hasSupabase()) {
+    const endpoint = `${ENV.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/upload/sign/${ENV.supabaseStorageBucket}/${key}`;
+    const response = await fetch(endpoint, { method: "POST", headers: { ...supabaseHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ upsert: false }) });
+    if (!response.ok) throw new Error(`Supabase signed upload failed (${response.status})`);
+    const payload = await response.json() as { token?: string; url?: string };
+    if (!payload.token && !payload.url) throw new Error("Supabase returned an empty signed upload URL");
+    const uploadUrl = payload.url?.startsWith("http") ? payload.url : `${ENV.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/upload/sign/${ENV.supabaseStorageBucket}/${key}?token=${encodeURIComponent(payload.token ?? "")}`;
+    return { key, uploadUrl };
+  }
+  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) throw new Error("Storage config missing: configure Supabase Storage or Manus Forge");
+  const presignUrl = new URL("v1/storage/presign/put", ENV.forgeApiUrl.replace(/\/$/, "") + "/");
+  presignUrl.searchParams.set("path", key);
+  const response = await fetch(presignUrl, { headers: { Authorization: `Bearer ${ENV.forgeApiKey}` } });
+  if (!response.ok) throw new Error(`Storage presign failed (${response.status})`);
+  const { url } = await response.json() as { url: string };
+  if (!url) throw new Error("Storage returned an empty signed upload URL");
+  return { key, uploadUrl: url };
+}
+
 export async function storagePut(relKey: string, data: Buffer | Uint8Array | string, contentType = "application/octet-stream") {
   const key = appendHashSuffix(normalizeKey(relKey));
   if (hasSupabase()) {
