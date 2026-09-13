@@ -3,7 +3,7 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm check && pnpm run build",
   "outputDirectory": "dist/public",
-  "cleanUrls": true,
+  "cleanUrls": false,
   "rewrites": [
     { "source": "/messages", "destination": "/messages/index.html" },
     { "source": "/messages/", "destination": "/messages/index.html" },
