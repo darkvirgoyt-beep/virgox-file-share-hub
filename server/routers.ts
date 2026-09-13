@@ -36,6 +36,7 @@ import {
   updateStoredFileScanStatus,
 } from "./db.js";
 import {
+  deleteMessage,
   getChatStatus,
   listConversationMessages,
   listFriendRequests,
@@ -83,6 +84,7 @@ export const appRouter = router({
     respond: protectedProcedure.input(z.object({ requestId: z.number().int().positive(), status: z.enum(["accepted", "declined"]) })).mutation(({ ctx, input }) => respondToFriendRequest(ctx.user.id, input.requestId, input.status)),
     messages: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ ctx, input }) => listConversationMessages(ctx.user.id, input.userId)),
     sendMessage: protectedProcedure.input(z.object({ userId: z.number().int().positive(), body: z.string().trim().max(5000).optional(), fileId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => sendMessage(ctx.user.id, input.userId, input.body, input.fileId)),
+    deleteMessage: protectedProcedure.input(z.object({ messageId: z.number().int().positive() })).mutation(({ ctx, input }) => deleteMessage(ctx.user.id, input.messageId)),
     heartbeat: protectedProcedure.mutation(({ ctx }) => touchPresence(ctx.user.id)),
     typing: protectedProcedure.input(z.object({ userId: z.number().int().positive(), typing: z.boolean() })).mutation(({ ctx, input }) => setTyping(ctx.user.id, input.userId, input.typing)),
     status: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ ctx, input }) => getChatStatus(ctx.user.id, input.userId)),

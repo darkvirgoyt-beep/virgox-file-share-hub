@@ -104,6 +104,7 @@ export async function listConversationMessages(userId: number, otherUserId: numb
       body: messages.body,
       fileId: messages.fileId,
       fileName: storedFiles.originalName,
+      fileMimeType: storedFiles.mimeType,
       deliveredAt: messages.deliveredAt,
       readAt: messages.readAt,
       createdAt: messages.createdAt,
@@ -125,6 +126,7 @@ export async function listConversationMessages(userId: number, otherUserId: numb
       fileId: messages.fileId,
       fileName: sql<string | null>`null`,
       fileUrl: sql<string | null>`null`,
+      fileMimeType: sql<string | null>`null`,
       deliveredAt: messages.deliveredAt,
       readAt: messages.readAt,
       createdAt: messages.createdAt,
@@ -146,6 +148,14 @@ export async function sendMessage(userId: number, otherUserId: number, body?: st
   const result = await db.insert(messages).values({ conversationId: conversation.id, senderId: userId, body: body?.trim() || null, fileId: fileId ?? null }).returning({ id: messages.id });
   await createNotification({ recipientId: otherUserId, actorId: userId, type: "message", resourceType: "conversation", resourceId: conversation.id, title: "New message", body: fileId ? "A friend sent you a file." : "A friend sent you a message." });
   return result[0];
+}
+
+export async function deleteMessage(userId: number, messageId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const deleted = await db.delete(messages).where(and(eq(messages.id, messageId), eq(messages.senderId, userId))).returning({ id: messages.id });
+  if (!deleted[0]) throw new Error("You can only delete your own messages");
+  return { id: deleted[0].id, deleted: true as const };
 }
 
 export async function touchPresence(userId: number) {
