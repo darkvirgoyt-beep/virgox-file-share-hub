@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import {
@@ -346,7 +346,7 @@ export async function listNotifications(userId: number, limit: number, offset: n
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   return db.select({ id: notifications.id, actorId: notifications.actorId, type: notifications.type, resourceType: notifications.resourceType, resourceId: notifications.resourceId, title: notifications.title, body: notifications.body, readAt: notifications.readAt, createdAt: notifications.createdAt })
-    .from(notifications).where(eq(notifications.recipientId, userId)).orderBy(desc(notifications.createdAt)).limit(limit).offset(offset);
+    .from(notifications).where(and(eq(notifications.recipientId, userId), inArray(notifications.type, ["friend_request", "friend_request_accepted", "file_received"]))).orderBy(desc(notifications.createdAt)).limit(limit).offset(offset);
 }
 
 export async function markNotificationRead(userId: number, notificationId: number) {
@@ -415,7 +415,7 @@ export async function searchUsers(query: string, currentUserId: number) {
   const normalized = query.trim();
   if (normalized.length < 2) return [];
   const pattern = `%${normalized}%`;
-  const results = await db.select({
+  const direct = await db.select({
     id: users.id,
     name: users.name,
     username: profiles.username,
@@ -431,12 +431,53 @@ export async function searchUsers(query: string, currentUserId: number) {
         ilike(profiles.displayName, pattern),
       ),
     ))
-    .limit(20);
-  return results.map((result) => ({
+    .limit(80);
+  const results = direct.length >= 20 ? direct : await db.select({
+    id: users.id,
+    name: users.name,
+    username: profiles.username,
+    displayName: profiles.displayName,
+    avatarUrl: profiles.avatarUrl,
+  }).from(users).leftJoin(profiles, eq(profiles.userId, users.id))
+    .where(sql`${users.id} <> ${currentUserId}`).limit(120);
+  const editDistance = (a: string, b: string) => {
+    const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= a.length; i += 1) {
+      let previous = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j += 1) {
+        const next = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = next;
+      }
+    }
+    return row[b.length];
+  };
+  const needle = normalized.toLowerCase();
+  return results.map((result) => {
+    const label = `${result.displayName ?? ""} ${result.username ?? ""} ${result.name ?? ""}`.toLowerCase();
+    const exact = label.includes(needle) ? 100 : 0;
+    const closeness = Math.max(...label.split(/\s+/).filter(Boolean).map((part) => Math.max(0, 30 - editDistance(needle, part) * 4)), 0);
+    return { result, score: exact + closeness };
+  }).sort((a, b) => b.score - a.score).slice(0, 20).map(({ result }) => ({
     ...result,
     username: result.username ?? result.name?.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 32) ?? "member",
     displayName: result.displayName ?? result.name ?? "VirgoX member",
   }));
+}
+
+export async function recommendUsers(currentUserId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: users.id, name: users.name, username: profiles.username, displayName: profiles.displayName, avatarUrl: profiles.avatarUrl })
+    .from(users).leftJoin(profiles, eq(profiles.userId, users.id)).where(sql`${users.id} <> ${currentUserId}`).orderBy(desc(users.lastSignedIn)).limit(12);
+}
+
+export async function unreadMessageCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ id: messages.id }).from(messages).innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(isNull(messages.readAt), sql`${messages.senderId} <> ${userId}`, or(eq(conversations.userAId, userId), eq(conversations.userBId, userId)))).limit(1000);
+  return rows.length;
 }
 
 export async function followUser(followerId: number, followingId: number) {

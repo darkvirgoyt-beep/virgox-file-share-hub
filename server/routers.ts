@@ -33,6 +33,8 @@ import {
   recordVideoView,
   searchUsers,
   listOwnedFiles,
+  recommendUsers,
+  unreadMessageCount,
   updateStoredFileScanStatus,
 } from "./db.js";
 import {
@@ -83,6 +85,7 @@ export const appRouter = router({
     request: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => sendFriendRequest(ctx.user.id, input.userId)),
     respond: protectedProcedure.input(z.object({ requestId: z.number().int().positive(), status: z.enum(["accepted", "declined"]) })).mutation(({ ctx, input }) => respondToFriendRequest(ctx.user.id, input.requestId, input.status)),
     messages: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ ctx, input }) => listConversationMessages(ctx.user.id, input.userId)),
+    unreadCount: protectedProcedure.query(({ ctx }) => unreadMessageCount(ctx.user.id)),
     sendMessage: protectedProcedure.input(z.object({ userId: z.number().int().positive(), body: z.string().trim().max(5000).optional(), fileId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => sendMessage(ctx.user.id, input.userId, input.body, input.fileId)),
     deleteMessage: protectedProcedure.input(z.object({ messageId: z.number().int().positive() })).mutation(({ ctx, input }) => deleteMessage(ctx.user.id, input.messageId)),
     heartbeat: protectedProcedure.mutation(({ ctx }) => touchPresence(ctx.user.id)),
@@ -126,6 +129,7 @@ export const appRouter = router({
     follow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => followUser(ctx.user.id, input.userId)),
     unfollow: protectedProcedure.input(z.object({ userId: z.number().int().positive() })).mutation(({ ctx, input }) => unfollowUser(ctx.user.id, input.userId)),
     search: protectedProcedure.input(z.object({ query: z.string().trim().min(2).max(80) })).query(({ ctx, input }) => searchUsers(input.query, ctx.user.id)),
+    recommended: protectedProcedure.query(({ ctx }) => recommendUsers(ctx.user.id)),
   }),
   groups: router({
     public: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(50).default(30) }).optional()).query(({ input }) => getPublicGroups(input?.limit ?? 30)),

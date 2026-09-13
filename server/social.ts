@@ -141,12 +141,18 @@ export async function sendMessage(userId: number, otherUserId: number, body?: st
   const conversation = await getConversationForMembers(userId, otherUserId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  let uploadedFileName: string | undefined;
   if (fileId) {
-    const file = await db.select({ id: storedFiles.id, ownerId: storedFiles.ownerId }).from(storedFiles).where(and(eq(storedFiles.id, fileId), eq(storedFiles.ownerId, userId))).limit(1);
+    const file = await db.select({ id: storedFiles.id, ownerId: storedFiles.ownerId, originalName: storedFiles.originalName }).from(storedFiles).where(and(eq(storedFiles.id, fileId), eq(storedFiles.ownerId, userId))).limit(1);
     if (!file[0]) throw new Error("File is unavailable");
+    uploadedFileName = file[0].originalName;
   }
   const result = await db.insert(messages).values({ conversationId: conversation.id, senderId: userId, body: body?.trim() || null, fileId: fileId ?? null }).returning({ id: messages.id });
-  await createNotification({ recipientId: otherUserId, actorId: userId, type: "message", resourceType: "conversation", resourceId: conversation.id, title: "New message", body: fileId ? "A friend sent you a file." : "A friend sent you a message." });
+  if (uploadedFileName) {
+    const sender = await db.select({ name: users.name, displayName: profiles.displayName }).from(users).leftJoin(profiles, eq(profiles.userId, users.id)).where(eq(users.id, userId)).limit(1);
+    const senderName = sender[0]?.displayName ?? sender[0]?.name ?? "A VirgoX friend";
+    await createNotification({ recipientId: otherUserId, actorId: userId, type: "file_received", resourceType: "conversation", resourceId: conversation.id, title: `File from ${senderName}`, body: uploadedFileName });
+  }
   return result[0];
 }
 
