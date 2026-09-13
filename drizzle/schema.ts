@@ -143,6 +143,15 @@ export const messages = pgTable("messages", {
   body: text("body"),
   fileId: integer("fileId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deliveredAt: timestamp("deliveredAt"),
+  readAt: timestamp("readAt"),
+});
+
+export const chatPresence = pgTable("chat_presence", {
+  userId: integer("userId").primaryKey(),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  typingConversationId: integer("typingConversationId"),
+  typingUntil: timestamp("typingUntil"),
 });
 
 export const reports = pgTable("reports", {

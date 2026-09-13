@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
-import { conversations, friendRequests, messages, profiles, storedFiles, users } from "../drizzle/schema.js";
+import { chatPresence, conversations, friendRequests, messages, profiles, storedFiles, users } from "../drizzle/schema.js";
 import { createNotification, getDb } from "./db.js";
 import { storageGetSignedUrl } from "./storage.js";
 
@@ -96,6 +96,7 @@ export async function listConversationMessages(userId: number, otherUserId: numb
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const safeLimit = Math.min(Math.max(limit, 1), 200);
+  await db.update(messages).set({ deliveredAt: new Date(), readAt: new Date() }).where(and(eq(messages.conversationId, conversation.id), eq(messages.senderId, otherUserId)));
   try {
     const rows = await db.select({
       id: messages.id,
@@ -103,6 +104,8 @@ export async function listConversationMessages(userId: number, otherUserId: numb
       body: messages.body,
       fileId: messages.fileId,
       fileName: storedFiles.originalName,
+      deliveredAt: messages.deliveredAt,
+      readAt: messages.readAt,
       createdAt: messages.createdAt,
     }).from(messages)
       .leftJoin(storedFiles, eq(storedFiles.id, messages.fileId))
@@ -122,6 +125,8 @@ export async function listConversationMessages(userId: number, otherUserId: numb
       fileId: messages.fileId,
       fileName: sql<string | null>`null`,
       fileUrl: sql<string | null>`null`,
+      deliveredAt: messages.deliveredAt,
+      readAt: messages.readAt,
       createdAt: messages.createdAt,
     }).from(messages)
       .where(eq(messages.conversationId, conversation.id))
@@ -141,4 +146,37 @@ export async function sendMessage(userId: number, otherUserId: number, body?: st
   const result = await db.insert(messages).values({ conversationId: conversation.id, senderId: userId, body: body?.trim() || null, fileId: fileId ?? null }).returning({ id: messages.id });
   await createNotification({ recipientId: otherUserId, actorId: userId, type: "message", resourceType: "conversation", resourceId: conversation.id, title: "New message", body: fileId ? "A friend sent you a file." : "A friend sent you a message." });
   return result[0];
+}
+
+export async function touchPresence(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(chatPresence).values({ userId, lastSeenAt: new Date(), typingConversationId: null, typingUntil: null })
+    .onConflictDoUpdate({ target: chatPresence.userId, set: { lastSeenAt: new Date() } });
+  return { ok: true as const };
+}
+
+export async function setTyping(userId: number, otherUserId: number, typing: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const conversation = await getConversationForMembers(userId, otherUserId);
+  const until = typing ? new Date(Date.now() + 4_000) : null;
+  await db.insert(chatPresence).values({ userId, lastSeenAt: new Date(), typingConversationId: typing ? conversation.id : null, typingUntil: until })
+    .onConflictDoUpdate({ target: chatPresence.userId, set: { lastSeenAt: new Date(), typingConversationId: typing ? conversation.id : null, typingUntil: until } });
+  return { ok: true as const };
+}
+
+export async function getChatStatus(viewerId: number, otherUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({ lastSeenAt: chatPresence.lastSeenAt, typingConversationId: chatPresence.typingConversationId, typingUntil: chatPresence.typingUntil })
+    .from(chatPresence).where(eq(chatPresence.userId, otherUserId)).limit(1);
+  const row = rows[0];
+  const now = Date.now();
+  return {
+    online: Boolean(row?.lastSeenAt && now - row.lastSeenAt.getTime() < 60_000),
+    typing: Boolean(row?.typingUntil && row.typingUntil.getTime() > now),
+    lastSeenAt: row?.lastSeenAt ?? null,
+    viewerId,
+  };
 }
