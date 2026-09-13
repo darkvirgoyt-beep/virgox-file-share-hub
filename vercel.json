@@ -4,11 +4,10 @@
   "buildCommand": "pnpm check && pnpm run build",
   "outputDirectory": "dist/public",
   "cleanUrls": true,
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/messages/?", "dest": "/index.html" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/messages", "destination": "/messages/index.html" },
+    { "source": "/messages/", "destination": "/messages/index.html" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
